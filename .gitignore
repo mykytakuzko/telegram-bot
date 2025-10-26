@@ -1,0 +1,38 @@
+# Build results
+bin/
+obj/
+out/
+*.dll
+*.exe
+*.pdb
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker volumes
+postgres_data/
+
+# Environment variables (PASSWORDS!)
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NuGet packages (optional - можна комітити або ні)
+*.nupkg
+*.snupkg
+
+# Logs
+*.log
