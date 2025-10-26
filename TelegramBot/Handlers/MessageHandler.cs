@@ -511,7 +511,8 @@ public class MessageHandler
                       $"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}\n" +
                       $"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}\n" +
                       $"💲 Ціна: {entity.MinPrice} - {entity.MaxPrice}\n" +
-                      $"📦 Кількість: {entity.AmountToBuy}\n" +
+                      $"📦 Кількість для покупки: {entity.AmountToBuy}\n" +
+                      $"🛒 Куплено: {entity.AmountBought}\n" +
                       $"💱 Валюта: {entity.Currency}\n" +
                       $"✅ Активна: {(entity.IsActive ? "Так" : "Ні")}\n" +
                       $"💎 Only TON: {(entity.IsOnlyTonPayment ? "Так" : "Ні")}\n" +

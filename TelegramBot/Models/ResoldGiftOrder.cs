@@ -21,6 +21,9 @@ public class ResoldGiftOrder
     
     [JsonPropertyName("amount_to_buy")]
     public int AmountToBuy { get; set; }
+
+    [JsonPropertyName("amount_bought")]
+    public int AmountBought { get; set; }
     
     [JsonPropertyName("model_name")]
     public string? ModelName { get; set; }
