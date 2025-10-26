@@ -14,6 +14,12 @@ public class MessageHandler
     private readonly ApiService _apiService;
     private readonly StateManager _stateManager;
 
+    private static readonly HashSet<long> AllowedUserIds = new()
+    {
+        790102074,
+        510963549,
+    };
+
     public MessageHandler(ITelegramBotClient botClient, ApiService apiService, StateManager stateManager)
     {
         _botClient = botClient;
@@ -23,6 +29,23 @@ public class MessageHandler
 
     public async Task HandleUpdateAsync(Update update)
     {
+        long userId = 0;
+
+        if (update.Type == UpdateType.Message && update.Message?.From != null)
+        {
+            userId = update.Message.From.Id;
+        }
+        else if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery?.From != null)
+        {
+            userId = update.CallbackQuery.From.Id;
+        }
+
+        if (userId == 0 || !AllowedUserIds.Contains(userId))
+        {
+            Console.WriteLine($"Unauthorized access attempt from user {userId}");
+            return;
+        }
+
         if (update.Type == UpdateType.Message && update.Message?.Text != null)
         {
             await HandleMessageAsync(update.Message);
