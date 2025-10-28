@@ -19,6 +19,7 @@ public class MessageHandler
         790102074,
         510963549,
     };
+    private const long AdminUserId = 510963549;
 
     public MessageHandler(ITelegramBotClient botClient, ApiService apiService, StateManager stateManager)
     {
@@ -120,8 +121,56 @@ public class MessageHandler
 
         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Створити нову", "create_new") });
 
+        if (userId == AdminUserId)
+        {
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ сутності", "view_all_entities") });
+        }
+
         var inlineKeyboard = new InlineKeyboardMarkup(buttons);
         await _botClient.SendTextMessageAsync(chatId, "Ваші сутності:", replyMarkup: inlineKeyboard);
+    }
+
+    private async Task ShowAllEntitiesAsync(long chatId, int page = 0)
+    {
+        var entities = await _apiService.GetAllAsync();
+
+        if (entities == null || entities.Count == 0)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "Немає жодної сутності в системі");
+            return;
+        }
+
+        var sortedEntities = entities.OrderByDescending(e => e.IsActive).ThenBy(e => e.Id).ToList();
+
+        // Пагінація - 15 на сторінку
+        const int pageSize = 15;
+        var totalPages = (int)Math.Ceiling(sortedEntities.Count / (double)pageSize);
+        page = Math.Max(0, Math.Min(page, totalPages - 1));
+        var pageEntities = sortedEntities.Skip(page * pageSize).Take(pageSize).ToList();
+
+        var buttons = pageEntities.Select(e => new[] {
+        InlineKeyboardButton.WithCallbackData(
+            $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - User:{e.UserId} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
+            $"entity_{e.Id}")
+    }).ToList();
+
+        // Навігація
+        var navButtons = new List<InlineKeyboardButton>();
+        if (page > 0)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("◀️", $"allpage_{page - 1}"));
+        navButtons.Add(InlineKeyboardButton.WithCallbackData($"📄 {page + 1}/{totalPages}", "current_page"));
+        if (page < totalPages - 1)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"allpage_{page + 1}"));
+
+        if (navButtons.Any())
+            buttons.Add(navButtons.ToArray());
+
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад до своїх", "back_to_list") });
+
+        var inlineKeyboard = new InlineKeyboardMarkup(buttons);
+        await _botClient.SendTextMessageAsync(chatId,
+            $"Всі сутності ({sortedEntities.Count} всього):\nСторінка {page + 1}/{totalPages}",
+            replyMarkup: inlineKeyboard);
     }
 
     private async Task ShowGiftSelectionAsync(long chatId, UserState state, int page = 0)
@@ -315,7 +364,22 @@ public class MessageHandler
 
         var state = await _stateManager.GetStateAsync(userId);
 
-        // ========== НОВІ ОБРОБНИКИ ДЛЯ GIFT/MODEL/SYMBOL/BACKDROP ==========
+        if (data == "view_all_entities")
+        {
+            if (userId == AdminUserId)
+                await ShowAllEntitiesAsync(chatId, 0);
+            return;
+        }
+
+        if (data.StartsWith("allpage_"))
+        {
+            if (userId == AdminUserId)
+            {
+                var page = int.Parse(data.Split('_')[1]);
+                await ShowAllEntitiesAsync(chatId, page);
+            }
+            return;
+        }
 
         // Обробка вибору Gift
         if (data.StartsWith("gift_"))

@@ -226,4 +226,20 @@ public class ApiService
             return null;
         }
     }
+
+    public async Task<List<ResoldGiftOrder>?> GetAllAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/marketplace/resold-gift-order");
+            if (!response.IsSuccessStatusCode) return null;
+            var content = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<List<ResoldGiftOrder>>(content);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetAllAsync: {ex.Message}");
+            return null;
+        }
+    }
 }
