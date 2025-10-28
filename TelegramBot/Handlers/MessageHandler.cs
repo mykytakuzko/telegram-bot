@@ -529,6 +529,7 @@ public class MessageHandler
         }
 
         var message = $"📋 Деталі сутності #{entity.Id}\n\n" +
+                      $"👤 Owner ID: {entity.OwnerId}\n" +
                       $"🎁 Gift: {(string.IsNullOrEmpty(entity.GiftName) ? "не встановлено" : entity.GiftName)}\n" +
                       $"👤 Model: {entity.ModelName ?? "не встановлено"}\n" +
                       $"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}\n" +
@@ -572,6 +573,7 @@ public class MessageHandler
         // ПРИБРАЛИ GIFT з редагування!
         var keyboard = new InlineKeyboardMarkup(new[]
         {
+            new[] { InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}", $"edit_model_{entityId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}", $"edit_symbol_{entityId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}", $"edit_backdrop_{entityId}") },
@@ -641,6 +643,7 @@ public class MessageHandler
 
         var (prompt, keyboard) = field switch
         {
+            "ownerid" => ("👤 Введіть Owner ID:", CreateCancelKeyboard()),
             "model" => ("👤 Введіть model_name:", CreateSkipCancelKeyboard()),
             "symbol" => ("🔣 Введіть symbol_name:", CreateSkipCancelKeyboard()),
             "backdrop" => ("🎨 Введіть backdrop_name:", CreateSkipCancelKeyboard()),
@@ -731,7 +734,8 @@ public class MessageHandler
             "currency",
             "is_active",
             "is_only_ton_payment",
-            "should_buy_original_details"
+            "should_buy_original_details",
+            "owner_id"
         };
 
         var currentField = steps[state.CurrentStep];
@@ -761,6 +765,7 @@ public class MessageHandler
 
         switch (field)
         {
+            case "ownerid": order.OwnerId = long.TryParse(input, out var ownerId) ? ownerId : order.OwnerId; break;
             case "model": order.ModelName = input.ToLower() == "skip" ? null : input; break;
             case "symbol": order.SymbolName = input.ToLower() == "skip" ? null : input; break;
             case "backdrop": order.BackdropName = input.ToLower() == "skip" ? null : input; break;
@@ -795,6 +800,7 @@ public class MessageHandler
 
         var keyboard = new InlineKeyboardMarkup(new[]
         {
+        new[] { InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}") },
         new[] { InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}", $"edit_model_{entityId}") },
         new[] { InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}", $"edit_symbol_{entityId}") },
         new[] { InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}", $"edit_backdrop_{entityId}") },
@@ -861,7 +867,8 @@ public class MessageHandler
             "currency",
             "is_active",
             "is_only_ton_payment",
-            "should_buy_original_details"
+            "should_buy_original_details",
+            "owner_id"
         };
 
         if (state.CurrentStep >= steps.Length)
@@ -909,6 +916,7 @@ public class MessageHandler
             "is_active" => ($"✅ Активна?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
             "is_only_ton_payment" => ($"💎 Тільки TON оплата?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
             "should_buy_original_details" => ($"🔄 Купувати з оригінальними деталями?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
+            "owner_id" => ($"👤 Введіть Owner ID\nПоточне значення: {currentValue}", CreateCancelKeyboard()),
             _ => ("Введіть значення", CreateCancelKeyboard())
         };
 
@@ -930,6 +938,7 @@ public class MessageHandler
         "is_active" => order.IsActive ? "Так" : "Ні",
         "is_only_ton_payment" => order.IsOnlyTonPayment ? "Так" : "Ні",
         "should_buy_original_details" => order.ShouldBuyWithOriginalDetails ? "Так" : "Ні",
+        "owner_id" => order.OwnerId.ToString(),
         _ => "не встановлено"
     };
 
@@ -964,6 +973,7 @@ public class MessageHandler
             case "is_active": order.IsActive = value.ToLower() == "yes" || value.ToLower() == "так"; break;
             case "is_only_ton_payment": order.IsOnlyTonPayment = value.ToLower() == "yes" || value.ToLower() == "так"; break;
             case "should_buy_original_details": order.ShouldBuyWithOriginalDetails = value.ToLower() == "yes" || value.ToLower() == "так"; break;
+            case "owner_id": order.OwnerId = long.TryParse(value, out var ownerId) ? ownerId : 0; break;
         }
     }
 

@@ -45,4 +45,7 @@ public class ResoldGiftOrder
     
     [JsonPropertyName("should_buy_with_original_details")]
     public bool ShouldBuyWithOriginalDetails { get; set; }
+
+    [JsonPropertyName("owner_id")]
+    public long OwnerId { get; set; }
 }
