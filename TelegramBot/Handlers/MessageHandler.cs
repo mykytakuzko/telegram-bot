@@ -132,11 +132,12 @@ public class MessageHandler
 
     private async Task ShowAllEntitiesAsync(long chatId, int page = 0)
     {
-        var entities = await _apiService.GetAllAsync();
+        // Використовуємо існуючий ендпоінт /active
+        var entities = await _apiService.GetAllActiveAsync();
 
         if (entities == null || entities.Count == 0)
         {
-            await _botClient.SendTextMessageAsync(chatId, "Немає жодної сутності в системі");
+            await _botClient.SendTextMessageAsync(chatId, "Немає жодної активної сутності в системі");
             return;
         }
 
@@ -150,7 +151,7 @@ public class MessageHandler
 
         var buttons = pageEntities.Select(e => new[] {
         InlineKeyboardButton.WithCallbackData(
-            $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - User:{e.UserId} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
+            $"🟢 #{e.Id} - User:{e.UserId} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
             $"entity_{e.Id}")
     }).ToList();
 
@@ -169,7 +170,7 @@ public class MessageHandler
 
         var inlineKeyboard = new InlineKeyboardMarkup(buttons);
         await _botClient.SendTextMessageAsync(chatId,
-            $"Всі сутності ({sortedEntities.Count} всього):\nСторінка {page + 1}/{totalPages}",
+            $"Всі активні сутності ({sortedEntities.Count} всього):\nСторінка {page + 1}/{totalPages}",
             replyMarkup: inlineKeyboard);
     }
 
