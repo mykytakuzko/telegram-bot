@@ -141,7 +141,7 @@ public class MessageHandler
             return;
         }
 
-        var sortedEntities = entities.OrderByDescending(e => e.IsActive).ThenBy(e => e.Id).ToList();
+        var sortedEntities = entities.OrderByDescending(e => e.IsActive).ThenByDescending(e => e.Id).ToList();
 
         // Пагінація - 15 на сторінку
         const int pageSize = 15;
