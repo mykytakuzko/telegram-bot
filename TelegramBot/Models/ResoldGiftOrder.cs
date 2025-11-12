@@ -28,11 +28,20 @@ public class ResoldGiftOrder
     [JsonPropertyName("model_name")]
     public string? ModelName { get; set; }
     
+    [JsonPropertyName("percent_of_the_model")]
+    public string? PercentOfTheModel { get; set; }
+    
     [JsonPropertyName("symbol_name")]
     public string? SymbolName { get; set; }
     
+    [JsonPropertyName("percent_of_the_symbol")]
+    public string? PercentOfTheSymbol { get; set; }
+    
     [JsonPropertyName("backdrop_name")]
     public string? BackdropName { get; set; }
+    
+    [JsonPropertyName("percent_of_the_backdrop")]
+    public string? PercentOfTheBackdrop { get; set; }
     
     [JsonPropertyName("gift_name")]
     public string GiftName { get; set; } = string.Empty;

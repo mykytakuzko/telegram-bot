@@ -19,6 +19,7 @@ public class MessageHandler
         790102074,
         510963549,
     };
+
     private const long AdminUserId = 510963549;
 
     public MessageHandler(ITelegramBotClient botClient, ApiService apiService, StateManager stateManager)
@@ -68,7 +69,9 @@ public class MessageHandler
         {
             await _botClient.DeleteMessageAsync(chatId, message.MessageId);
         }
-        catch { }
+        catch
+        {
+        }
 
         if (text == "/start")
         {
@@ -90,7 +93,9 @@ public class MessageHandler
                 await Task.Delay(3000);
                 await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 
@@ -101,29 +106,33 @@ public class MessageHandler
         {
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-            InlineKeyboardButton.WithCallbackData("➕ Створити нову сутність", "create_new")
-        });
+                InlineKeyboardButton.WithCallbackData("➕ Створити нову сутність", "create_new")
+            });
             await _botClient.SendTextMessageAsync(chatId, "У вас немає сутностей", replyMarkup: keyboard);
             return;
         }
 
         // Сортування: спочатку активні, потім по ID
         var sortedEntities = entities
-            .OrderByDescending(e => e.IsActive)  // Активні спочатку (true > false)
-            .ThenByDescending(e => e.Id)                    // Потім по ID
+            .OrderByDescending(e => e.IsActive) // Активні спочатку (true > false)
+            .ThenByDescending(e => e.Id) // Потім по ID
             .ToList();
 
         var buttons = sortedEntities.Select(e =>
-            new[] { InlineKeyboardButton.WithCallbackData(
-            $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
-            $"entity_{e.Id}") }
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
+                    $"entity_{e.Id}")
+            }
         ).ToList();
 
         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Створити нову", "create_new") });
 
         if (userId == AdminUserId)
         {
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ сутності", "view_all_entities") });
+            buttons.Add(new[]
+                { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ сутності", "view_all_entities") });
         }
 
         var inlineKeyboard = new InlineKeyboardMarkup(buttons);
@@ -149,11 +158,12 @@ public class MessageHandler
         page = Math.Max(0, Math.Min(page, totalPages - 1));
         var pageEntities = sortedEntities.Skip(page * pageSize).Take(pageSize).ToList();
 
-        var buttons = pageEntities.Select(e => new[] {
-        InlineKeyboardButton.WithCallbackData(
-            $"🟢 #{e.Id} - User:{e.UserId} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
-            $"entity_{e.Id}")
-    }).ToList();
+        var buttons = pageEntities.Select(e => new[]
+        {
+            InlineKeyboardButton.WithCallbackData(
+                $"🟢 #{e.Id} - User:{e.UserId} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
+                $"entity_{e.Id}")
+        }).ToList();
 
         // Навігація
         var navButtons = new List<InlineKeyboardButton>();
@@ -179,11 +189,13 @@ public class MessageHandler
         var giftsResponse = await _apiService.GetGiftsAsync();
         if (giftsResponse == null || !giftsResponse.Gifts.Any())
         {
-            var skipKeyboard = new InlineKeyboardMarkup(new[] {
+            var skipKeyboard = new InlineKeyboardMarkup(new[]
+            {
                 InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
                 InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
             });
-            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Не вдалося завантажити список подарунків", replyMarkup: skipKeyboard);
+            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Не вдалося завантажити список подарунків",
+                replyMarkup: skipKeyboard);
             state.LastBotMessageId = msg.MessageId;
             await _stateManager.SaveStateAsync(state);
             return;
@@ -197,8 +209,13 @@ public class MessageHandler
         var buttons = new List<InlineKeyboardButton[]>();
         for (int i = 0; i < pageGifts.Count; i += 2)
         {
-            var row = new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData(pageGifts[i].Name, $"gift_{pageGifts[i].Id}_{pageGifts[i].Name}") };
-            if (i + 1 < pageGifts.Count) row.Add(InlineKeyboardButton.WithCallbackData(pageGifts[i + 1].Name, $"gift_{pageGifts[i + 1].Id}_{pageGifts[i + 1].Name}"));
+            var row = new List<InlineKeyboardButton>
+            {
+                InlineKeyboardButton.WithCallbackData(pageGifts[i].Name, $"gift_{pageGifts[i].Id}_{pageGifts[i].Name}")
+            };
+            if (i + 1 < pageGifts.Count)
+                row.Add(InlineKeyboardButton.WithCallbackData(pageGifts[i + 1].Name,
+                    $"gift_{pageGifts[i + 1].Id}_{pageGifts[i + 1].Name}"));
             buttons.Add(row.ToArray());
         }
 
@@ -211,7 +228,8 @@ public class MessageHandler
         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") });
 
         var keyboard = new InlineKeyboardMarkup(buttons);
-        var message = await _botClient.SendTextMessageAsync(chatId, $"🎁 Оберіть подарунок (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
+        var message = await _botClient.SendTextMessageAsync(chatId,
+            $"🎁 Оберіть подарунок (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
         state.LastBotMessageId = message.MessageId;
         await _stateManager.SaveStateAsync(state);
     }
@@ -221,11 +239,13 @@ public class MessageHandler
         var modelsResponse = await _apiService.GetGiftModelsAsync(giftId);
         if (modelsResponse == null || !modelsResponse.GiftModels.Any())
         {
-            var skipKeyboard = new InlineKeyboardMarkup(new[] {
+            var skipKeyboard = new InlineKeyboardMarkup(new[]
+            {
                 InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
                 InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
             });
-            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних моделей", replyMarkup: skipKeyboard);
+            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних моделей",
+                replyMarkup: skipKeyboard);
             state.LastBotMessageId = msg.MessageId;
             await _stateManager.SaveStateAsync(state);
             return;
@@ -239,8 +259,11 @@ public class MessageHandler
         var buttons = new List<InlineKeyboardButton[]>();
         for (int i = 0; i < pageModels.Count; i += 2)
         {
-            var row = new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData(pageModels[i].Name, $"model_{pageModels[i].Name}") };
-            if (i + 1 < pageModels.Count) row.Add(InlineKeyboardButton.WithCallbackData(pageModels[i + 1].Name, $"model_{pageModels[i + 1].Name}"));
+            var row = new List<InlineKeyboardButton>
+                { InlineKeyboardButton.WithCallbackData(pageModels[i].Name, $"model_{pageModels[i].Name}") };
+            if (i + 1 < pageModels.Count)
+                row.Add(
+                    InlineKeyboardButton.WithCallbackData(pageModels[i + 1].Name, $"model_{pageModels[i + 1].Name}"));
             buttons.Add(row.ToArray());
         }
 
@@ -250,13 +273,15 @@ public class MessageHandler
         if (page < totalPages - 1) navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"modelpage_{page + 1}"));
         if (navButtons.Any()) buttons.Add(navButtons.ToArray());
 
-        buttons.Add(new[] {
+        buttons.Add(new[]
+        {
             InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
             InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
         });
 
         var keyboard = new InlineKeyboardMarkup(buttons);
-        var message = await _botClient.SendTextMessageAsync(chatId, $"👤 Оберіть модель (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
+        var message = await _botClient.SendTextMessageAsync(chatId,
+            $"👤 Оберіть модель (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
         state.LastBotMessageId = message.MessageId;
         await _stateManager.SaveStateAsync(state);
     }
@@ -266,11 +291,13 @@ public class MessageHandler
         var symbolsResponse = await _apiService.GetGiftSymbolsAsync(giftId);
         if (symbolsResponse == null || !symbolsResponse.GiftSymbols.Any())
         {
-            var skipKeyboard = new InlineKeyboardMarkup(new[] {
+            var skipKeyboard = new InlineKeyboardMarkup(new[]
+            {
                 InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
                 InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
             });
-            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних символів", replyMarkup: skipKeyboard);
+            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних символів",
+                replyMarkup: skipKeyboard);
             state.LastBotMessageId = msg.MessageId;
             await _stateManager.SaveStateAsync(state);
             return;
@@ -284,24 +311,30 @@ public class MessageHandler
         var buttons = new List<InlineKeyboardButton[]>();
         for (int i = 0; i < pageSymbols.Count; i += 2)
         {
-            var row = new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData(pageSymbols[i].Name, $"symbol_{pageSymbols[i].Name}") };
-            if (i + 1 < pageSymbols.Count) row.Add(InlineKeyboardButton.WithCallbackData(pageSymbols[i + 1].Name, $"symbol_{pageSymbols[i + 1].Name}"));
+            var row = new List<InlineKeyboardButton>
+                { InlineKeyboardButton.WithCallbackData(pageSymbols[i].Name, $"symbol_{pageSymbols[i].Name}") };
+            if (i + 1 < pageSymbols.Count)
+                row.Add(InlineKeyboardButton.WithCallbackData(pageSymbols[i + 1].Name,
+                    $"symbol_{pageSymbols[i + 1].Name}"));
             buttons.Add(row.ToArray());
         }
 
         var navButtons = new List<InlineKeyboardButton>();
         if (page > 0) navButtons.Add(InlineKeyboardButton.WithCallbackData("◀️", $"symbolpage_{page - 1}"));
         navButtons.Add(InlineKeyboardButton.WithCallbackData($"📄 {page + 1}/{totalPages}", "current_page"));
-        if (page < totalPages - 1) navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"symbolpage_{page + 1}"));
+        if (page < totalPages - 1)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"symbolpage_{page + 1}"));
         if (navButtons.Any()) buttons.Add(navButtons.ToArray());
 
-        buttons.Add(new[] {
+        buttons.Add(new[]
+        {
             InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
             InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
         });
 
         var keyboard = new InlineKeyboardMarkup(buttons);
-        var message = await _botClient.SendTextMessageAsync(chatId, $"🔣 Оберіть символ (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
+        var message = await _botClient.SendTextMessageAsync(chatId,
+            $"🔣 Оберіть символ (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
         state.LastBotMessageId = message.MessageId;
         await _stateManager.SaveStateAsync(state);
     }
@@ -311,11 +344,13 @@ public class MessageHandler
         var backdropsResponse = await _apiService.GetGiftBackdropsAsync(giftId);
         if (backdropsResponse == null || !backdropsResponse.GiftBackdrops.Any())
         {
-            var skipKeyboard = new InlineKeyboardMarkup(new[] {
+            var skipKeyboard = new InlineKeyboardMarkup(new[]
+            {
                 InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
                 InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
             });
-            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних фонів", replyMarkup: skipKeyboard);
+            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Немає доступних фонів",
+                replyMarkup: skipKeyboard);
             state.LastBotMessageId = msg.MessageId;
             await _stateManager.SaveStateAsync(state);
             return;
@@ -329,24 +364,78 @@ public class MessageHandler
         var buttons = new List<InlineKeyboardButton[]>();
         for (int i = 0; i < pageBackdrops.Count; i += 2)
         {
-            var row = new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData(pageBackdrops[i].Name, $"backdrop_{pageBackdrops[i].Name}") };
-            if (i + 1 < pageBackdrops.Count) row.Add(InlineKeyboardButton.WithCallbackData(pageBackdrops[i + 1].Name, $"backdrop_{pageBackdrops[i + 1].Name}"));
+            var row = new List<InlineKeyboardButton>
+                { InlineKeyboardButton.WithCallbackData(pageBackdrops[i].Name, $"backdrop_{pageBackdrops[i].Name}") };
+            if (i + 1 < pageBackdrops.Count)
+                row.Add(InlineKeyboardButton.WithCallbackData(pageBackdrops[i + 1].Name,
+                    $"backdrop_{pageBackdrops[i + 1].Name}"));
             buttons.Add(row.ToArray());
         }
 
         var navButtons = new List<InlineKeyboardButton>();
         if (page > 0) navButtons.Add(InlineKeyboardButton.WithCallbackData("◀️", $"backdroppage_{page - 1}"));
         navButtons.Add(InlineKeyboardButton.WithCallbackData($"📄 {page + 1}/{totalPages}", "current_page"));
-        if (page < totalPages - 1) navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"backdroppage_{page + 1}"));
+        if (page < totalPages - 1)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"backdroppage_{page + 1}"));
         if (navButtons.Any()) buttons.Add(navButtons.ToArray());
 
-        buttons.Add(new[] {
+        buttons.Add(new[]
+        {
             InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field"),
             InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
         });
 
         var keyboard = new InlineKeyboardMarkup(buttons);
-        var message = await _botClient.SendTextMessageAsync(chatId, $"🎨 Оберіть фон (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
+        var message = await _botClient.SendTextMessageAsync(chatId,
+            $"🎨 Оберіть фон (сторінка {page + 1}/{totalPages}):", replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task ShowModelTypeSelectionAsync(long chatId, UserState state)
+    {
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("🎯 Точна модель", "modeltype_exact") },
+            new[] { InlineKeyboardButton.WithCallbackData("📊 Схожість у %", "modeltype_percentage") },
+            new[] { InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "modeltype_skip") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        var message =
+            await _botClient.SendTextMessageAsync(chatId, "👤 Оберіть тип вибору моделі:", replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task ShowSymbolTypeSelectionAsync(long chatId, UserState state)
+    {
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("🎯 Точний символ", "symboltype_exact") },
+            new[] { InlineKeyboardButton.WithCallbackData("📊 Схожість у %", "symboltype_percentage") },
+            new[] { InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "symboltype_skip") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        var message =
+            await _botClient.SendTextMessageAsync(chatId, "🔣 Оберіть тип вибору символу:", replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task ShowBackdropTypeSelectionAsync(long chatId, UserState state)
+    {
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("🎯 Точний фон", "backdroptype_exact") },
+            new[] { InlineKeyboardButton.WithCallbackData("📊 Схожість у %", "backdroptype_percentage") },
+            new[] { InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "backdroptype_skip") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        var message =
+            await _botClient.SendTextMessageAsync(chatId, "🎨 Оберіть тип вибору фону:", replyMarkup: keyboard);
         state.LastBotMessageId = message.MessageId;
         await _stateManager.SaveStateAsync(state);
     }
@@ -361,7 +450,13 @@ public class MessageHandler
         await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
 
         // Видаляємо попереднє повідомлення
-        try { await _botClient.DeleteMessageAsync(chatId, messageId); } catch { }
+        try
+        {
+            await _botClient.DeleteMessageAsync(chatId, messageId);
+        }
+        catch
+        {
+        }
 
         var state = await _stateManager.GetStateAsync(userId);
 
@@ -379,6 +474,7 @@ public class MessageHandler
                 var page = int.Parse(data.Split('_')[1]);
                 await ShowAllEntitiesAsync(chatId, page);
             }
+
             return;
         }
 
@@ -517,9 +613,101 @@ public class MessageHandler
             var currency = data.Replace("currency_", "");
             await ProcessFlowInputAsync(chatId, userId, currency, await _stateManager.GetStateAsync(userId));
         }
+        else if (data == "modeltype_exact")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            state.CurrentStep++; // Переходимо до model_value
+            await _stateManager.SaveStateAsync(state);
+
+            // Показуємо кнопки моделей
+            if (state.SelectedGiftId.HasValue)
+                await ShowModelSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+        }
+        else if (data == "modeltype_percentage")
+        {
+            var keyboard = CreateCancelKeyboard();
+            var message = await _botClient.SendTextMessageAsync(chatId,
+                "📊 Введіть значення схожості моделі\nФормат: <5, =1.1, >5.9",
+                replyMarkup: keyboard);
+
+            state!.CurrentStep++; // Переходимо до model_value
+            state.LastBotMessageId = message.MessageId;
+            await _stateManager.SaveStateAsync(state);
+        }
+        else if (data == "modeltype_skip")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            order.ModelName = null;
+            order.PercentOfTheModel = null;
+            state.CollectedData = JsonSerializer.Serialize(order);
+            state.CurrentStep += 2; // Пропускаємо model_type і model_value
+            await _stateManager.SaveStateAsync(state);
+            await AskNextStepAsync(chatId, state, order);
+        }
+        else if (data == "symboltype_exact")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            state.CurrentStep++;
+            await _stateManager.SaveStateAsync(state);
+
+            if (state.SelectedGiftId.HasValue)
+                await ShowSymbolSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+        }
+        else if (data == "symboltype_percentage")
+        {
+            var keyboard = CreateCancelKeyboard();
+            var message = await _botClient.SendTextMessageAsync(chatId,
+                "📊 Введіть значення схожості символу\nФормат: <5, =1.1, >5.9",
+                replyMarkup: keyboard);
+
+            state!.CurrentStep++;
+            state.LastBotMessageId = message.MessageId;
+            await _stateManager.SaveStateAsync(state);
+        }
+        else if (data == "symboltype_skip")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            order.SymbolName = null;
+            order.PercentOfTheSymbol = null;
+            state.CollectedData = JsonSerializer.Serialize(order);
+            state.CurrentStep += 2;
+            await _stateManager.SaveStateAsync(state);
+            await AskNextStepAsync(chatId, state, order);
+        }
+        else if (data == "backdroptype_exact")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            state.CurrentStep++;
+            await _stateManager.SaveStateAsync(state);
+
+            if (state.SelectedGiftId.HasValue)
+                await ShowBackdropSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+        }
+        else if (data == "backdroptype_percentage")
+        {
+            var keyboard = CreateCancelKeyboard();
+            var message = await _botClient.SendTextMessageAsync(chatId,
+                "📊 Введіть значення схожості фону\nФормат: <5, =1.1, >5.9",
+                replyMarkup: keyboard);
+
+            state!.CurrentStep++;
+            state.LastBotMessageId = message.MessageId;
+            await _stateManager.SaveStateAsync(state);
+        }
+        else if (data == "backdroptype_skip")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state!.CollectedData!);
+            order.BackdropName = null;
+            order.PercentOfTheBackdrop = null;
+            state.CollectedData = JsonSerializer.Serialize(order);
+            state.CurrentStep += 2;
+            await _stateManager.SaveStateAsync(state);
+            await AskNextStepAsync(chatId, state, order);
+        }
     }
 
-    private async Task HandleGiftSelectionAsync(long chatId, long userId, long giftId, string giftName, UserState? state)
+    private async Task HandleGiftSelectionAsync(long chatId, long userId, long giftId, string giftName,
+        UserState? state)
     {
         if (state == null) return;
 
@@ -592,13 +780,28 @@ public class MessageHandler
             await _botClient.SendTextMessageAsync(chatId, "Сутність не знайдено");
             return;
         }
+        
+        // Форматування Model
+        var modelDisplay = !string.IsNullOrEmpty(entity.PercentOfTheModel) 
+            ? $"{entity.PercentOfTheModel}%" 
+            : (!string.IsNullOrEmpty(entity.ModelName) ? entity.ModelName : "не встановлено");
+
+        // Форматування Symbol
+        var symbolDisplay = !string.IsNullOrEmpty(entity.PercentOfTheSymbol) 
+            ? $"{entity.PercentOfTheSymbol}%" 
+            : (!string.IsNullOrEmpty(entity.SymbolName) ? entity.SymbolName : "не встановлено");
+
+        // Форматування Backdrop
+        var backdropDisplay = !string.IsNullOrEmpty(entity.PercentOfTheBackdrop) 
+            ? $"{entity.PercentOfTheBackdrop}%" 
+            : (!string.IsNullOrEmpty(entity.BackdropName) ? entity.BackdropName : "не встановлено");
 
         var message = $"📋 Деталі сутності #{entity.Id}\n\n" +
                       $"👤 Owner ID: {entity.OwnerId}\n" +
                       $"🎁 Gift: {(string.IsNullOrEmpty(entity.GiftName) ? "не встановлено" : entity.GiftName)}\n" +
-                      $"👤 Model: {entity.ModelName ?? "не встановлено"}\n" +
-                      $"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}\n" +
-                      $"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}\n" +
+                      $"👤 Model: {modelDisplay}\n" +
+                      $"🔣 Symbol: {symbolDisplay}\n" +
+                      $"🎨 Backdrop: {backdropDisplay}\n" +
                       $"💲 Ціна: {entity.MinPrice} - {entity.MaxPrice}\n" +
                       $"📦 Кількість для покупки: {entity.AmountToBuy}\n" +
                       $"🛒 Куплено: {entity.AmountBought}\n" +
@@ -609,10 +812,10 @@ public class MessageHandler
 
         var keyboard = new InlineKeyboardMarkup(new[]
         {
-        new[] { InlineKeyboardButton.WithCallbackData("🔄 Оновити", $"update_{entity.Id}") },
-        new[] { InlineKeyboardButton.WithCallbackData("🗑 Видалити", $"delete_{entity.Id}") },
-        new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "back_to_list") }
-    });
+            new[] { InlineKeyboardButton.WithCallbackData("🔄 Оновити", $"update_{entity.Id}") },
+            new[] { InlineKeyboardButton.WithCallbackData("🗑 Видалити", $"delete_{entity.Id}") },
+            new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "back_to_list") }
+        });
 
         await _botClient.SendTextMessageAsync(chatId, message, replyMarkup: keyboard);
     }
@@ -638,17 +841,57 @@ public class MessageHandler
         // ПРИБРАЛИ GIFT з редагування!
         var keyboard = new InlineKeyboardMarkup(new[]
         {
-            new[] { InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}", $"edit_model_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}", $"edit_symbol_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}", $"edit_backdrop_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"💲 Min Price: {entity.MinPrice}", $"edit_minprice_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"💰 Max Price: {entity.MaxPrice}", $"edit_maxprice_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"📦 Amount: {entity.AmountToBuy}", $"edit_amount_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"💱 Currency: {entity.Currency}", $"edit_currency_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"✅ Active: {(entity.IsActive ? "Так" : "Ні")}", $"edit_active_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"💎 Only TON: {(entity.IsOnlyTonPayment ? "Так" : "Ні")}", $"edit_onlytonpayment_{entityId}") },
-            new[] { InlineKeyboardButton.WithCallbackData($"🔄 Original Details: {(entity.ShouldBuyWithOriginalDetails ? "Так" : "Ні")}", $"edit_originaldetails_{entityId}") },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}",
+                    $"edit_model_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}",
+                    $"edit_symbol_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}",
+                    $"edit_backdrop_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💲 Min Price: {entity.MinPrice}", $"edit_minprice_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💰 Max Price: {entity.MaxPrice}", $"edit_maxprice_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"📦 Amount: {entity.AmountToBuy}", $"edit_amount_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💱 Currency: {entity.Currency}", $"edit_currency_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"✅ Active: {(entity.IsActive ? "Так" : "Ні")}",
+                    $"edit_active_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💎 Only TON: {(entity.IsOnlyTonPayment ? "Так" : "Ні")}",
+                    $"edit_onlytonpayment_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    $"🔄 Original Details: {(entity.ShouldBuyWithOriginalDetails ? "Так" : "Ні")}",
+                    $"edit_originaldetails_{entityId}")
+            },
             new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_{entityId}") },
             new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
         });
@@ -732,51 +975,57 @@ public class MessageHandler
     {
         return new InlineKeyboardMarkup(new[]
         {
-        InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
-    });
+            InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow")
+        });
     }
 
     private InlineKeyboardMarkup CreateSkipCancelKeyboard()
     {
         return new InlineKeyboardMarkup(new[]
         {
-        new[] { InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field") },
-        new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
-    });
+            new[] { InlineKeyboardButton.WithCallbackData("⏭ Пропустити", "skip_field") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
     }
 
     private InlineKeyboardMarkup CreateYesNoKeyboard()
     {
         return new InlineKeyboardMarkup(new[]
         {
-        new[]
-        {
-            InlineKeyboardButton.WithCallbackData("✅ Так", "answer_yes"),
-            InlineKeyboardButton.WithCallbackData("❌ Ні", "answer_no")
-        },
-        new[] { InlineKeyboardButton.WithCallbackData("🔙 Скасувати", "cancel_flow") }
-    });
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("✅ Так", "answer_yes"),
+                InlineKeyboardButton.WithCallbackData("❌ Ні", "answer_no")
+            },
+            new[] { InlineKeyboardButton.WithCallbackData("🔙 Скасувати", "cancel_flow") }
+        });
     }
 
     private InlineKeyboardMarkup CreateCurrencyKeyboard()
     {
         return new InlineKeyboardMarkup(new[]
         {
-        new[]
-        {
-            InlineKeyboardButton.WithCallbackData("💎 STARS", "currency_STARS"),
-            InlineKeyboardButton.WithCallbackData("💰 TON", "currency_TON")
-        },
-        new[] { InlineKeyboardButton.WithCallbackData("💵 BOTH", "currency_BOTH") },
-        new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
-    });
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("💎 STARS", "currency_STARS"),
+                InlineKeyboardButton.WithCallbackData("💰 TON", "currency_TON")
+            },
+            new[] { InlineKeyboardButton.WithCallbackData("💵 BOTH", "currency_BOTH") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
     }
 
     private async Task ProcessFlowInputAsync(long chatId, long userId, string input, UserState state)
     {
         if (state.LastBotMessageId.HasValue)
         {
-            try { await _botClient.DeleteMessageAsync(chatId, state.LastBotMessageId.Value); } catch { }
+            try
+            {
+                await _botClient.DeleteMessageAsync(chatId, state.LastBotMessageId.Value);
+            }
+            catch
+            {
+            }
         }
 
         if (state.CurrentFlow.StartsWith("edit_"))
@@ -788,11 +1037,15 @@ public class MessageHandler
         var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
         if (order == null) return;
 
-        var steps = new[] {
+        var steps = new[]
+        {
             "gift_name",
-            "model_name",
-            "symbol_name",
-            "backdrop_name",
+            "model_type", // ← НОВИЙ: вибір типу моделі
+            "model_value", // ← НОВИЙ: значення (name або percent)
+            "symbol_type", // ← НОВИЙ: вибір типу символу
+            "symbol_value", // ← НОВИЙ: значення
+            "backdrop_type", // ← НОВИЙ: вибір типу фону
+            "backdrop_value", // ← НОВИЙ: значення
             "min_price",
             "max_price",
             "amount_to_buy",
@@ -809,7 +1062,15 @@ public class MessageHandler
         if (currentField == "gift_name")
         {
             var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Будь ласка, оберіть подарунок з кнопок вище");
-            try { await Task.Delay(2000); await _botClient.DeleteMessageAsync(chatId, msg.MessageId); } catch { }
+            try
+            {
+                await Task.Delay(2000);
+                await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
+            }
+            catch
+            {
+            }
+
             return;
         }
 
@@ -840,7 +1101,8 @@ public class MessageHandler
             case "currency": order.Currency = input.ToUpper(); break;
             case "active": order.IsActive = input.ToLower() == "yes" || input.ToLower() == "так"; break;
             case "onlytonpayment": order.IsOnlyTonPayment = input.ToLower() == "yes" || input.ToLower() == "так"; break;
-            case "originaldetails": order.ShouldBuyWithOriginalDetails = input.ToLower() == "yes" || input.ToLower() == "так"; break;
+            case "originaldetails":
+                order.ShouldBuyWithOriginalDetails = input.ToLower() == "yes" || input.ToLower() == "так"; break;
         }
 
         state.CollectedData = JsonSerializer.Serialize(order);
@@ -854,7 +1116,9 @@ public class MessageHandler
             await Task.Delay(1000);
             await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
         }
-        catch { }
+        catch
+        {
+        }
 
         await ShowUpdateMenuFromStateAsync(chatId, userId, order);
     }
@@ -865,23 +1129,64 @@ public class MessageHandler
 
         var keyboard = new InlineKeyboardMarkup(new[]
         {
-        new[] { InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}", $"edit_model_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}", $"edit_symbol_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}", $"edit_backdrop_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"💲 Min Price: {entity.MinPrice}", $"edit_minprice_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"💰 Max Price: {entity.MaxPrice}", $"edit_maxprice_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"📦 Amount: {entity.AmountToBuy}", $"edit_amount_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"💱 Currency: {entity.Currency}", $"edit_currency_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"✅ Active: {(entity.IsActive ? "Так" : "Ні")}", $"edit_active_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"💎 Only TON: {(entity.IsOnlyTonPayment ? "Так" : "Ні")}", $"edit_onlytonpayment_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData($"🔄 Original Details: {(entity.ShouldBuyWithOriginalDetails ? "Так" : "Ні")}", $"edit_originaldetails_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_{entityId}") },
-        new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
-    });
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"👤 Owner ID: {entity.OwnerId}", $"edit_ownerid_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"👤 Model: {entity.ModelName ?? "не встановлено"}",
+                    $"edit_model_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"🔣 Symbol: {entity.SymbolName ?? "не встановлено"}",
+                    $"edit_symbol_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"🎨 Backdrop: {entity.BackdropName ?? "не встановлено"}",
+                    $"edit_backdrop_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💲 Min Price: {entity.MinPrice}", $"edit_minprice_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💰 Max Price: {entity.MaxPrice}", $"edit_maxprice_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"📦 Amount: {entity.AmountToBuy}", $"edit_amount_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💱 Currency: {entity.Currency}", $"edit_currency_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"✅ Active: {(entity.IsActive ? "Так" : "Ні")}",
+                    $"edit_active_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"💎 Only TON: {(entity.IsOnlyTonPayment ? "Так" : "Ні")}",
+                    $"edit_onlytonpayment_{entityId}")
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    $"🔄 Original Details: {(entity.ShouldBuyWithOriginalDetails ? "Так" : "Ні")}",
+                    $"edit_originaldetails_{entityId}")
+            },
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_{entityId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
 
         await _botClient.SendTextMessageAsync(chatId, "Оберіть поле для редагування:", replyMarkup: keyboard);
     }
+
     private async Task FinishEditAsync(long chatId, long userId, int entityId)
     {
         var state = await _stateManager.GetStateAsync(userId);
@@ -891,7 +1196,8 @@ public class MessageHandler
         if (order == null) return;
 
         var success = await _apiService.UpdateAsync(entityId, order);
-        var statusMessage = await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
+        var statusMessage =
+            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
 
         await _stateManager.ClearStateAsync(userId);
 
@@ -901,7 +1207,9 @@ public class MessageHandler
             await Task.Delay(2000);
             await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
         }
-        catch { }
+        catch
+        {
+        }
 
         await ShowMainMenuAsync(chatId, userId);
     }
@@ -921,11 +1229,15 @@ public class MessageHandler
 
     private async Task AskNextStepAsync(long chatId, UserState state, ResoldGiftOrder currentData)
     {
-        var steps = new[] {
+        var steps = new[]
+        {
             "gift_name",
-            "model_name",
-            "symbol_name",
-            "backdrop_name",
+            "model_type", // ← НОВИЙ: вибір типу моделі
+            "model_value", // ← НОВИЙ: значення (name або percent)
+            "symbol_type", // ← НОВИЙ: вибір типу символу
+            "symbol_value", // ← НОВИЙ: значення
+            "backdrop_type", // ← НОВИЙ: вибір типу фону
+            "backdrop_value", // ← НОВИЙ: значення
             "min_price",
             "max_price",
             "amount_to_buy",
@@ -951,21 +1263,72 @@ public class MessageHandler
             return;
         }
 
-        if (currentField == "model_name" && state.SelectedGiftId.HasValue)
+        // Model Type - вибір типу
+        if (currentField == "model_type")
         {
-            await ShowModelSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+            await ShowModelTypeSelectionAsync(chatId, state);
             return;
         }
 
-        if (currentField == "symbol_name" && state.SelectedGiftId.HasValue)
+        // Model Value - залежить від вибраного типу (exact або percentage)
+        if (currentField == "model_value")
         {
-            await ShowSymbolSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+            // Перевіряємо чи є ModelName (значить вибрано exact) або треба вводити percent
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
+    
+            if (!string.IsNullOrEmpty(order?.ModelName))
+            {
+                // Exact вже обрано через кнопки, пропускаємо цей крок
+                state.CurrentStep++;
+                await _stateManager.SaveStateAsync(state);
+                await AskNextStepAsync(chatId, state, order);
+            }
+            else
+            {
+                // Чекаємо на введення percentage (вже показали промпт в modeltype_percentage)
+                // Нічого не робимо, чекаємо текстового input
+            }
             return;
         }
 
-        if (currentField == "backdrop_name" && state.SelectedGiftId.HasValue)
+// Symbol Type
+        if (currentField == "symbol_type")
         {
-            await ShowBackdropSelectionAsync(chatId, state, state.SelectedGiftId.Value, 0);
+            await ShowSymbolTypeSelectionAsync(chatId, state);
+            return;
+        }
+
+        if (currentField == "symbol_value")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
+    
+            if (!string.IsNullOrEmpty(order?.SymbolName))
+            {
+                state.CurrentStep++;
+                await _stateManager.SaveStateAsync(state);
+                await AskNextStepAsync(chatId, state, order);
+            }
+            return;
+        }
+
+        // Backdrop Type
+        if (currentField == "backdrop_type")
+        {
+            await ShowBackdropTypeSelectionAsync(chatId, state);
+            return;
+        }
+
+// Backdrop Value
+        if (currentField == "backdrop_value")
+        {
+            var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
+    
+            if (!string.IsNullOrEmpty(order?.BackdropName))
+            {
+                state.CurrentStep++;
+                await _stateManager.SaveStateAsync(state);
+                await AskNextStepAsync(chatId, state, order);
+            }
             return;
         }
 
@@ -976,11 +1339,14 @@ public class MessageHandler
         {
             "min_price" => ($"💵 Введіть мінімальну ціну\nПоточне значення: {currentValue}", CreateCancelKeyboard()),
             "max_price" => ($"💰 Введіть максимальну ціну\nПоточне значення: {currentValue}", CreateCancelKeyboard()),
-            "amount_to_buy" => ($"📦 Введіть кількість для покупки\nПоточне значення: {currentValue}", CreateCancelKeyboard()),
+            "amount_to_buy" => ($"📦 Введіть кількість для покупки\nПоточне значення: {currentValue}",
+                CreateCancelKeyboard()),
             "currency" => ($"💱 Оберіть валюту\nПоточне значення: {currentValue}", CreateCurrencyKeyboard()),
             "is_active" => ($"✅ Активна?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
-            "is_only_ton_payment" => ($"💎 Тільки TON оплата?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
-            "should_buy_original_details" => ($"🔄 Купувати з оригінальними деталями?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
+            "is_only_ton_payment" => ($"💎 Тільки TON оплата?\nПоточне значення: {currentValue}",
+                CreateYesNoKeyboard()),
+            "should_buy_original_details" => (
+                $"🔄 Купувати з оригінальними деталями?\nПоточне значення: {currentValue}", CreateYesNoKeyboard()),
             "owner_id" => ($"👤 Введіть Owner ID\nПоточне значення: {currentValue}", CreateCancelKeyboard()),
             _ => ("Введіть значення", CreateCancelKeyboard())
         };
@@ -994,8 +1360,11 @@ public class MessageHandler
     {
         "gift_name" => order.GiftName ?? "не встановлено",
         "model_name" => order.ModelName ?? "не встановлено",
+        "model_value" => !string.IsNullOrEmpty(order.PercentOfTheModel) ? order.PercentOfTheModel : order.ModelName ?? "не встановлено",
         "symbol_name" => order.SymbolName ?? "не встановлено",
+        "symbol_value" => !string.IsNullOrEmpty(order.PercentOfTheSymbol) ? order.PercentOfTheSymbol : order.SymbolName ?? "не встановлено",
         "backdrop_name" => order.BackdropName ?? "не встановлено",
+        "backdrop_value" => !string.IsNullOrEmpty(order.PercentOfTheBackdrop) ? order.PercentOfTheBackdrop : order.BackdropName ?? "не встановлено",
         "min_price" => order.MinPrice.ToString(),
         "max_price" => order.MaxPrice.ToString(),
         "amount_to_buy" => order.AmountToBuy.ToString(),
@@ -1012,7 +1381,8 @@ public class MessageHandler
         return field switch
         {
             "gift_name" => $"🎁 Введіть назву подарунка\nПоточне значення: {currentValue}",
-            "model_name" => $"👤 Введіть model_name (або напишіть 'skip' щоб пропустити)\nПоточне значення: {currentValue}",
+            "model_name" =>
+                $"👤 Введіть model_name (або напишіть 'skip' щоб пропустити)\nПоточне значення: {currentValue}",
             "symbol_name" => $"🔣 Введіть symbol_name (або 'skip')\nПоточне значення: {currentValue}",
             "backdrop_name" => $"🎨 Введіть backdrop_name (або 'skip')\nПоточне значення: {currentValue}",
             "min_price" => $"💵 Введіть мінімальну ціну\nПоточне значення: {currentValue}",
@@ -1029,15 +1399,29 @@ public class MessageHandler
         switch (field)
         {
             case "model_name": order.ModelName = value.ToLower() == "skip" ? null : value; break;
+            case "model_value":
+                if (string.IsNullOrEmpty(order.ModelName))
+                    order.PercentOfTheModel = value;
+                break;
             case "symbol_name": order.SymbolName = value.ToLower() == "skip" ? null : value; break;
+            case "symbol_value":
+                if (string.IsNullOrEmpty(order.SymbolName))
+                    order.PercentOfTheSymbol = value;
+                break;
             case "backdrop_name": order.BackdropName = value.ToLower() == "skip" ? null : value; break;
+            case "backdrop_value":
+                if (string.IsNullOrEmpty(order.BackdropName))
+                    order.PercentOfTheBackdrop = value;
+                break;
             case "min_price": order.MinPrice = int.TryParse(value, out var min) ? min : 1; break;
             case "max_price": order.MaxPrice = int.TryParse(value, out var max) ? max : 100; break;
             case "amount_to_buy": order.AmountToBuy = int.TryParse(value, out var amt) ? amt : 1; break;
             case "currency": order.Currency = value.ToUpper(); break;
             case "is_active": order.IsActive = value.ToLower() == "yes" || value.ToLower() == "так"; break;
-            case "is_only_ton_payment": order.IsOnlyTonPayment = value.ToLower() == "yes" || value.ToLower() == "так"; break;
-            case "should_buy_original_details": order.ShouldBuyWithOriginalDetails = value.ToLower() == "yes" || value.ToLower() == "так"; break;
+            case "is_only_ton_payment":
+                order.IsOnlyTonPayment = value.ToLower() == "yes" || value.ToLower() == "так"; break;
+            case "should_buy_original_details":
+                order.ShouldBuyWithOriginalDetails = value.ToLower() == "yes" || value.ToLower() == "так"; break;
             case "owner_id": order.OwnerId = long.TryParse(value, out var ownerId) ? ownerId : 0; break;
         }
     }
@@ -1053,13 +1437,15 @@ public class MessageHandler
         if (state.CurrentFlow == "create")
         {
             success = await _apiService.CreateAsync(order);
-            statusMessage = await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність створено!" : "❌ Помилка створення");
+            statusMessage =
+                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність створено!" : "❌ Помилка створення");
         }
         else
         {
             var entityId = int.Parse(state.EntityId!);
             success = await _apiService.UpdateAsync(entityId, order);
-            statusMessage = await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
+            statusMessage =
+                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
         }
 
         await _stateManager.ClearStateAsync(state.TelegramUserId);
@@ -1070,7 +1456,9 @@ public class MessageHandler
             await Task.Delay(2000);
             await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
         }
-        catch { }
+        catch
+        {
+        }
 
         await ShowMainMenuAsync(chatId, state.TelegramUserId);
     }
@@ -1078,7 +1466,8 @@ public class MessageHandler
     private async Task DeleteEntityAsync(long chatId, long userId, int entityId)
     {
         var success = await _apiService.DeleteAsync(entityId);
-        var statusMessage = await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність видалено!" : "❌ Помилка видалення");
+        var statusMessage =
+            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність видалено!" : "❌ Помилка видалення");
 
         // Видаляємо повідомлення про статус через 2 секунди
         try
@@ -1086,7 +1475,9 @@ public class MessageHandler
             await Task.Delay(2000);
             await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
         }
-        catch { }
+        catch
+        {
+        }
 
         await ShowMainMenuAsync(chatId, userId);
     }
