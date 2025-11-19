@@ -580,15 +580,27 @@ public class MessageHandler
         }
         else if (data == "skip_field")
         {
-            await ProcessFlowInputAsync(chatId, userId, "skip", await _stateManager.GetStateAsync(userId));
+            var currentState = await _stateManager.GetStateAsync(userId);
+            if (currentState?.CurrentFlow == "create_monitoring")
+                await ProcessMonitoringFlowInputAsync(chatId, userId, "skip", currentState);
+            else
+                await ProcessFlowInputAsync(chatId, userId, "skip", currentState);
         }
         else if (data == "answer_yes")
         {
-            await ProcessFlowInputAsync(chatId, userId, "yes", await _stateManager.GetStateAsync(userId));
+            var currentState = await _stateManager.GetStateAsync(userId);
+            if (currentState?.CurrentFlow == "create_monitoring")
+                await ProcessMonitoringFlowInputAsync(chatId, userId, "yes", currentState);
+            else
+                await ProcessFlowInputAsync(chatId, userId, "yes", currentState);
         }
         else if (data == "answer_no")
         {
-            await ProcessFlowInputAsync(chatId, userId, "no", await _stateManager.GetStateAsync(userId));
+            var currentState = await _stateManager.GetStateAsync(userId);
+            if (currentState?.CurrentFlow == "create_monitoring")
+                await ProcessMonitoringFlowInputAsync(chatId, userId, "no", currentState);
+            else
+                await ProcessFlowInputAsync(chatId, userId, "no", currentState);
         }
         else if (data.StartsWith("currency_"))
         {
