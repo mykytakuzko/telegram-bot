@@ -83,7 +83,15 @@ public class MessageHandler
         var state = await _stateManager.GetStateAsync(userId);
         if (state != null)
         {
-            await ProcessFlowInputAsync(chatId, userId, text, state);
+            // Route to appropriate flow handler
+            if (state.CurrentFlow == "create_monitoring")
+            {
+                await ProcessMonitoringFlowInputAsync(chatId, userId, text, state);
+            }
+            else
+            {
+                await ProcessFlowInputAsync(chatId, userId, text, state);
+            }
         }
         else
         {
@@ -101,42 +109,12 @@ public class MessageHandler
 
     private async Task ShowMainMenuAsync(long chatId, long userId)
     {
-        var entities = await _apiService.GetAllByUserAsync(userId);
-        if (entities == null || entities.Count == 0)
+        var keyboard = new InlineKeyboardMarkup(new[]
         {
-            var keyboard = new InlineKeyboardMarkup(new[]
-            {
-                InlineKeyboardButton.WithCallbackData("➕ Створити нову сутність", "create_new")
-            });
-            await _botClient.SendTextMessageAsync(chatId, "У вас немає сутностей", replyMarkup: keyboard);
-            return;
-        }
-
-        // Сортування: спочатку активні, потім по ID
-        var sortedEntities = entities
-            .OrderByDescending(e => e.IsActive) // Активні спочатку (true > false)
-            .ThenByDescending(e => e.Id) // Потім по ID
-            .ToList();
-
-        var buttons = sortedEntities.Select(e =>
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData(
-                    $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
-                    $"entity_{e.Id}")
-            }
-        ).ToList();
-
-        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Створити нову", "create_new") });
-
-        if (userId == AdminUserId)
-        {
-            buttons.Add(new[]
-                { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ сутності", "view_all_entities") });
-        }
-
-        var inlineKeyboard = new InlineKeyboardMarkup(buttons);
-        await _botClient.SendTextMessageAsync(chatId, "Ваші сутності:", replyMarkup: inlineKeyboard);
+            new[] { InlineKeyboardButton.WithCallbackData("📦 Створити замовлення", "create_order") },
+            new[] { InlineKeyboardButton.WithCallbackData("⚙️ Налаштувати моніторинг", "create_monitoring") }
+        });
+        await _botClient.SendTextMessageAsync(chatId, "Оберіть дію:", replyMarkup: keyboard);
     }
 
     private async Task ShowAllEntitiesAsync(long chatId, int page = 0)
@@ -582,9 +560,13 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await DeleteEntityAsync(chatId, userId, entityId);
         }
-        else if (data == "create_new")
+        else if (data == "create_order")
         {
             await StartCreateFlowAsync(chatId, userId);
+        }
+        else if (data == "create_monitoring")
+        {
+            await StartCreateMonitoringFlowAsync(chatId, userId);
         }
         else if (data == "cancel_flow")
         {
@@ -612,6 +594,32 @@ public class MessageHandler
         {
             var currency = data.Replace("currency_", "");
             await ProcessFlowInputAsync(chatId, userId, currency, await _stateManager.GetStateAsync(userId));
+        }
+        else if (data == "add_account_yes")
+        {
+            // Reset step to collect another account
+            if (state != null)
+            {
+                state.CurrentStep = 4; // Back to account_user_id step
+                await _stateManager.SaveStateAsync(state);
+                var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+                await AskNextMonitoringStepAsync(chatId, state, config!);
+            }
+        }
+        else if (data == "add_account_no")
+        {
+            // Proceed to finalization
+            if (state != null)
+            {
+                await FinalizeMonitoringFlowAsync(chatId, state);
+            }
+        }
+        else if (data == "confirm_monitoring")
+        {
+            if (state != null)
+            {
+                await SubmitMonitoringConfigAsync(chatId, state);
+            }
         }
         else if (data == "modeltype_exact")
         {
@@ -707,23 +715,38 @@ public class MessageHandler
     }
 
     private async Task HandleGiftSelectionAsync(long chatId, long userId, long giftId, string giftName,
-        UserState? state)
+    UserState? state)
+{
+    if (state == null) return;
+
+    // Check if this is monitoring flow
+    if (state.CurrentFlow == "create_monitoring")
     {
-        if (state == null) return;
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
 
-        var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
-        if (order == null) return;
-
-        order.GiftName = giftName; // Зберігаємо NAME
-
-        state.CollectedData = JsonSerializer.Serialize(order);
-        state.SelectedGiftId = giftId; // Зберігаємо ID для наступних кроків
+        config.GiftName = giftName;
+        state.CollectedData = JsonSerializer.Serialize(config);
+        state.SelectedGiftId = giftId;
         state.CurrentStep++;
         await _stateManager.SaveStateAsync(state);
 
-        await AskNextStepAsync(chatId, state, order);
+        await AskNextMonitoringStepAsync(chatId, state, config);
+        return;
     }
 
+    // Regular order flow
+    var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
+    if (order == null) return;
+
+    order.GiftName = giftName;
+    state.CollectedData = JsonSerializer.Serialize(order);
+    state.SelectedGiftId = giftId;
+    state.CurrentStep++;
+    await _stateManager.SaveStateAsync(state);
+
+    await AskNextStepAsync(chatId, state, order);
+}
     private async Task HandleModelSelectionAsync(long chatId, long userId, string modelName, UserState? state)
     {
         if (state == null) return;
@@ -1225,6 +1248,214 @@ public class MessageHandler
         };
         await _stateManager.SaveStateAsync(state);
         await AskNextStepAsync(chatId, state, new ResoldGiftOrder { UserId = userId });
+    }
+
+    private async Task StartCreateMonitoringFlowAsync(long chatId, long userId)
+    {
+        var state = new UserState
+        {
+            TelegramUserId = userId,
+            CurrentFlow = "create_monitoring",
+            CurrentStep = 0,
+            CollectedData = JsonSerializer.Serialize(new MonitoringConfig())
+        };
+        await _stateManager.SaveStateAsync(state);
+        await AskNextMonitoringStepAsync(chatId, state, new MonitoringConfig());
+    }
+
+    private async Task ProcessMonitoringFlowInputAsync(long chatId, long userId, string input, UserState state)
+    {
+        if (state.LastBotMessageId.HasValue)
+        {
+            try
+            {
+                await _botClient.DeleteMessageAsync(chatId, state.LastBotMessageId.Value);
+            }
+            catch
+            {
+            }
+        }
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var steps = new[]
+        {
+            "gift_name",
+            "account_interval",
+            "max_batches",
+            "is_active",
+            "account_user_id",     // Collect user_id
+            "account_is_active"    // Collect is_active for account
+        };
+
+        var currentField = steps[state.CurrentStep];
+
+        // Don't allow text input for gift_name
+        if (currentField == "gift_name")
+        {
+            var msg = await _botClient.SendTextMessageAsync(chatId, "⚠️ Будь ласка, оберіть подарунок з кнопок вище");
+            try
+            {
+                await Task.Delay(2000);
+                await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
+            }
+            catch
+            {
+            }
+            return;
+        }
+
+        // Field assignment
+        switch (currentField)
+        {
+            case "account_interval":
+                if (int.TryParse(input, out var interval))
+                    config.AccountInterval = interval;
+                break;
+            case "max_batches":
+                if (int.TryParse(input, out var batches))
+                    config.MaxBatches = batches;
+                break;
+            case "is_active":
+                config.IsActive = input.ToLower() == "yes" || input.ToLower() == "так";
+                break;
+            case "account_user_id":
+                // Store temporarily in EntityId
+                state.EntityId = input;
+                break;
+            case "account_is_active":
+                // Create account with stored user_id and current is_active
+                if (long.TryParse(state.EntityId, out var accountUserId))
+                {
+                    var account = new MonitoringAccount
+                    {
+                        UserId = accountUserId,
+                        IsActive = input.ToLower() == "yes" || input.ToLower() == "так"
+                    };
+                    config.Accounts.Add(account);
+                    state.EntityId = null; // Clear temp storage
+                }
+                break;
+        }
+
+        state.CollectedData = JsonSerializer.Serialize(config);
+        state.CurrentStep++;
+        await _stateManager.SaveStateAsync(state);
+
+        await AskNextMonitoringStepAsync(chatId, state, config);
+    }
+
+    private async Task AskNextMonitoringStepAsync(long chatId, UserState state, MonitoringConfig currentData)
+    {
+        var steps = new[]
+        {
+            "gift_name",
+            "account_interval",
+            "max_batches",
+            "is_active",
+            "account_user_id",
+            "account_is_active"
+        };
+
+        if (state.CurrentStep >= steps.Length)
+        {
+            // Ask if user wants to add another account
+            var accountKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData("✅ Додати ще один акаунт", "add_account_yes") },
+                new[] { InlineKeyboardButton.WithCallbackData("✔️ Завершити та створити", "add_account_no") }
+            });
+            var message = await _botClient.SendTextMessageAsync(chatId,
+                $"📊 Зараз додано акаунтів: {currentData.Accounts.Count()}\nДодати ще один?",
+                replyMarkup: accountKeyboard);
+            state.LastBotMessageId = message.MessageId;
+            await _stateManager.SaveStateAsync(state);
+            return;
+        }
+
+        var currentField = steps[state.CurrentStep];
+
+        if (currentField == "gift_name")
+        {
+            await ShowGiftSelectionAsync(chatId, state, 0);
+            return;
+        }
+
+        var (prompt, keyboard) = currentField switch
+        {
+            "account_interval" => ("⏱ Введіть інтервал акаунтів (мс):", CreateCancelKeyboard()),
+            "max_batches" => ("📦 Введіть максимальну кількість пакетів:", CreateCancelKeyboard()),
+            "is_active" => ("✅ Активна конфігурація?", CreateYesNoKeyboard()),
+            "account_user_id" => ($"👤 Введіть User ID акаунту (акаунт #{currentData.Accounts.Count + 1}):", CreateCancelKeyboard()),
+            "account_is_active" => ("✅ Акаунт активний?", CreateYesNoKeyboard()),
+            _ => ("Введіть значення:", CreateCancelKeyboard())
+        };
+
+        var msg = await _botClient.SendTextMessageAsync(chatId, prompt, replyMarkup: keyboard);
+        state.LastBotMessageId = msg.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task FinalizeMonitoringFlowAsync(long chatId, UserState state)
+    {
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        // Validation: at least one account required
+        if (config.Accounts.Count == 0)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка: потрібно додати хоча б один акаунт!");
+            await _stateManager.ClearStateAsync(state.TelegramUserId);
+            await ShowMainMenuAsync(chatId, state.TelegramUserId);
+            return;
+        }
+
+        //Show summary confirmation
+        var accountsList = string.Join("\n", config.Accounts.Select((a, i) =>
+            $"  {i + 1}. ID: {a.UserId} ({(a.IsActive ? "✅ Активний" : "❌ Неактивний")})"
+        ));
+
+        var summary = $"📋 Підтвердження конфігурації моніторингу:\n\n" +
+                     $"🎁 Подарунок: {config.GiftName}\n" +
+                     $"⏱ Інтервал: {config.AccountInterval} мс\n" +
+                     $"📦 Макс. пакетів: {config.MaxBatches}\n" +
+                     $"✅ Активна: {(config.IsActive ? "Так" : "Ні")}\n" +
+                     $"👥 Акаунти ({config.Accounts.Count}):\n{accountsList}\n\n" +
+                     $"Створити цю конфігурацію?";
+
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Підтвердити", "confirm_monitoring") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        var message = await _botClient.SendTextMessageAsync(chatId, summary, replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task SubmitMonitoringConfigAsync(long chatId, UserState state)
+    {
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var success = await _apiService.CreateMonitoringConfigAsync(config);
+        var statusMessage = await _botClient.SendTextMessageAsync(chatId,
+            success ? "✅ Конфігурацію моніторингу створено!" : "❌ Помилка створення");
+
+        await _stateManager.ClearStateAsync(state.TelegramUserId);
+
+        try
+        {
+            await Task.Delay(2000);
+            await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
+        }
+        catch
+        {
+        }
+
+        await ShowMainMenuAsync(chatId, state.TelegramUserId);
     }
 
     private async Task AskNextStepAsync(long chatId, UserState state, ResoldGiftOrder currentData)

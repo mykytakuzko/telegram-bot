@@ -226,4 +226,20 @@ public class ApiService
             return null;
         }
     }
+
+    public async Task<bool> CreateMonitoringConfigAsync(MonitoringConfig config)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(config);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync($"{_baseUrl}/api/marketplace/monitoring/config", content);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in CreateMonitoringConfigAsync: {ex.Message}");
+            return false;
+        }
+    }
 }
