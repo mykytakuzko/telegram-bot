@@ -232,9 +232,19 @@ public class ApiService
         try
         {
             var json = JsonSerializer.Serialize(config);
+            Console.WriteLine($"Sending monitoring config: {json}");
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync($"{_baseUrl}/api/marketplace/monitoring/config", content);
-            return response.IsSuccessStatusCode;
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error creating monitoring config: {response.StatusCode}");
+                Console.WriteLine($"Response body: {errorContent}");
+                return false;
+            }
+            
+            return true;
         }
         catch (Exception ex)
         {
