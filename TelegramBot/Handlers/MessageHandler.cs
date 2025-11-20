@@ -1927,6 +1927,7 @@ public class MessageHandler
             new[] { InlineKeyboardButton.WithCallbackData($"⏱ Інтервал: {config.AccountInterval} мс", $"edit_config_interval_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"📊 Макс. пакетів: {config.MaxBatches}", $"edit_config_batches_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"✅ Активна: {(config.IsActive ? "Так" : "Ні")}", $"edit_config_active_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("👥 Керувати акаунтами", $"manage_accounts_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_config_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
         });
@@ -2007,6 +2008,7 @@ public class MessageHandler
             new[] { InlineKeyboardButton.WithCallbackData($"⏱ Інтервал: {config.AccountInterval} мс", $"edit_config_interval_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"📊 Макс. пакетів: {config.MaxBatches}", $"edit_config_batches_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData($"✅ Активна: {(config.IsActive ? "Так" : "Ні")}", $"edit_config_active_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("👥 Керувати акаунтами", $"manage_accounts_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_config_{configId}") },
             new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
         });
