@@ -64,6 +64,9 @@ public class MessageHandler
         var userId = message.From!.Id;
         var text = message.Text!;
 
+        // Логування вхідного повідомлення з часом
+        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] MESSAGE from User {userId}: \"{text}\"");
+
         // Видаляємо повідомлення користувача
         try
         {
@@ -75,6 +78,7 @@ public class MessageHandler
 
         if (text == "/start")
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] User {userId} started the bot");
             await _stateManager.ClearStateAsync(userId);
             await ShowMainMenuAsync(chatId, userId);
             return;
@@ -510,8 +514,11 @@ public class MessageHandler
         var chatId = callbackQuery.Message!.Chat.Id;
         var userId = callbackQuery.From.Id;
         var data = callbackQuery.Data!;
-        var messageId = callbackQuery.Message.MessageId;
 
+        // Логування callback з часом
+        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] CALLBACK from User {userId}: \"{data}\"");
+
+        var messageId = callbackQuery.Message.MessageId;
         await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
 
         // Видаляємо попереднє повідомлення
@@ -642,9 +649,8 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await ShowEntityDetailsAsync(chatId, userId, entityId);
         }
-        else if (data.StartsWith("config_"))
+        else if (data.StartsWith("config_") && int.TryParse(data.Split('_')[1], out var configId))
         {
-            var configId = int.Parse(data.Split('_')[1]);
             await ShowMonitoringConfigDetailsAsync(chatId, userId, configId);
         }
         else if (data == "back_to_list")
@@ -671,24 +677,24 @@ public class MessageHandler
         }
         else if (data.StartsWith("update_config_"))
         {
-            var configId = int.Parse(data.Split('_')[2]);
+            configId = int.Parse(data.Split('_')[2]);
             await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, configId);
         }
         else if (data.StartsWith("delete_config_"))
         {
-            var configId = int.Parse(data.Split('_')[2]);
+            configId = int.Parse(data.Split('_')[2]);
             await DeleteMonitoringConfigAsync(chatId, userId, configId);
         }
         else if (data.StartsWith("edit_config_"))
         {
             var parts = data.Split('_');
             var field = parts[2];
-            var configId = int.Parse(parts[3]);
+            configId = int.Parse(parts[3]);
             await StartEditMonitoringConfigFieldAsync(chatId, userId, configId, field);
         }
         else if (data.StartsWith("finish_edit_config_"))
         {
-            var configId = int.Parse(data.Split('_')[3]);
+            configId = int.Parse(data.Split('_')[3]);
             await FinishMonitoringConfigEditAsync(chatId, userId, configId);
         }
         else if (data == "create_order")
