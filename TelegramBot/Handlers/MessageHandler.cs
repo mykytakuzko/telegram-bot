@@ -649,14 +649,36 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await ShowEntityDetailsAsync(chatId, userId, entityId);
         }
-        else if (data.StartsWith("config_") && int.TryParse(data.Split('_')[1], out var configId))
-        {
-            await ShowMonitoringConfigDetailsAsync(chatId, userId, configId);
-        }
         else if (data == "back_to_list")
         {
             await _stateManager.ClearStateAsync(userId);
             await ShowMainMenuAsync(chatId, userId);
+        }
+        else if (data.StartsWith("update_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[2]);
+            await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("delete_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[2]);
+            await DeleteMonitoringConfigAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("edit_config_"))
+        {
+            var parts = data.Split('_');
+            var field = parts[2];
+            var configId = int.Parse(parts[3]);
+            await StartEditMonitoringConfigFieldAsync(chatId, userId, configId, field);
+        }
+        else if (data.StartsWith("finish_edit_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[3]);
+            await FinishMonitoringConfigEditAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("config_") && int.TryParse(data.Split('_')[1], out var generalConfigId))
+        {
+            await ShowMonitoringConfigDetailsAsync(chatId, userId, generalConfigId);
         }
         else if (data.StartsWith("update_"))
         {
@@ -674,28 +696,6 @@ public class MessageHandler
         {
             var entityId = int.Parse(data.Split('_')[1]);
             await DeleteEntityAsync(chatId, userId, entityId);
-        }
-        else if (data.StartsWith("update_config_"))
-        {
-            configId = int.Parse(data.Split('_')[2]);
-            await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, configId);
-        }
-        else if (data.StartsWith("delete_config_"))
-        {
-            configId = int.Parse(data.Split('_')[2]);
-            await DeleteMonitoringConfigAsync(chatId, userId, configId);
-        }
-        else if (data.StartsWith("edit_config_"))
-        {
-            var parts = data.Split('_');
-            var field = parts[2];
-            configId = int.Parse(parts[3]);
-            await StartEditMonitoringConfigFieldAsync(chatId, userId, configId, field);
-        }
-        else if (data.StartsWith("finish_edit_config_"))
-        {
-            configId = int.Parse(data.Split('_')[3]);
-            await FinishMonitoringConfigEditAsync(chatId, userId, configId);
         }
         else if (data == "create_order")
         {
