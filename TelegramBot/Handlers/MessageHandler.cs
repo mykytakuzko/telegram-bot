@@ -638,6 +638,11 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await ShowEntityDetailsAsync(chatId, userId, entityId);
         }
+        else if (data.StartsWith("config_"))
+        {
+            var configId = int.Parse(data.Split('_')[1]);
+            await ShowMonitoringConfigDetailsAsync(chatId, userId, configId);
+        }
         else if (data == "back_to_list")
         {
             await _stateManager.ClearStateAsync(userId);
@@ -950,6 +955,42 @@ public class MessageHandler
             new[] { InlineKeyboardButton.WithCallbackData("🔄 Оновити", $"update_{entity.Id}") },
             new[] { InlineKeyboardButton.WithCallbackData("🗑 Видалити", $"delete_{entity.Id}") },
             new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "back_to_list") }
+        });
+
+        await _botClient.SendTextMessageAsync(chatId, message, replyMarkup: keyboard);
+    }
+
+    private async Task ShowMonitoringConfigDetailsAsync(long chatId, long userId, int configId)
+    {
+        var configsResponse = await _apiService.GetMonitoringConfigsAsync();
+        var config = configsResponse?.Data.FirstOrDefault(c => c.Id == configId);
+
+        if (config == null)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "Конфігурацію не знайдено");
+            return;
+        }
+
+        // Format accounts list
+        var accountsList = string.IsNullOrEmpty(config.Accounts.Any().ToString()) 
+            ? "Немає акаунтів"
+            : string.Join("\n", config.Accounts.Select((a, i) =>
+                $"  {i + 1}. User ID: {a.UserId} ({(a.IsActive ? "✅" : "❌")})"
+            ));
+
+        var message = $"⚙️ Деталі конфігурації #{config.Id}\n\n" +
+                      $"🎁 Подарунок: {config.GiftName}\n" +
+                      $"📦 Gift ID: {config.GiftId}\n" +
+                      $"⏱ Інтервал акаунтів: {config.AccountInterval} мс\n" +
+                      $"📊 Макс. пакетів: {config.MaxBatches}\n" +
+                      $"✅ Активна: {(config.IsActive ? "Так" : "Ні")}\n" +
+                      $"📅 Створено: {config.CreatedAt:dd.MM.yyyy HH:mm}\n" +
+                      $"🔄 Оновлено: {config.UpdatedAt:dd.MM.yyyy HH:mm}\n\n" +
+                      $"👥 Акаунти ({config.Accounts.Count}):\n{accountsList}";
+
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад до списку", "view_all_configs") }
         });
 
         await _botClient.SendTextMessageAsync(chatId, message, replyMarkup: keyboard);
