@@ -252,4 +252,25 @@ public class ApiService
             return false;
         }
     }
+
+    public async Task<MonitoringConfigsResponse?> GetMonitoringConfigsAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/marketplace/monitoring/configs");
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Error fetching monitoring configs: {response.StatusCode}");
+                return null;
+            }
+            var content = await response.Content.ReadAsStringAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return JsonSerializer.Deserialize<MonitoringConfigsResponse>(content, options);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetMonitoringConfigsAsync: {ex.Message}");
+            return null;
+        }
+    }
 }

@@ -109,12 +109,46 @@ public class MessageHandler
 
     private async Task ShowMainMenuAsync(long chatId, long userId)
     {
-        var keyboard = new InlineKeyboardMarkup(new[]
+        var entities = await _apiService.GetAllByUserAsync(userId);
+        if (entities == null || entities.Count == 0)
         {
-            new[] { InlineKeyboardButton.WithCallbackData("📦 Створити замовлення", "create_order") },
-            new[] { InlineKeyboardButton.WithCallbackData("⚙️ Налаштувати моніторинг", "create_monitoring") }
-        });
-        await _botClient.SendTextMessageAsync(chatId, "Оберіть дію:", replyMarkup: keyboard);
+            var keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData("➕ Створити замовлення", "create_order") },
+                new[] { InlineKeyboardButton.WithCallbackData("⚙️ Налаштувати моніторинг", "create_monitoring") }
+            });
+            await _botClient.SendTextMessageAsync(chatId, "У вас немає замовлень", replyMarkup: keyboard);
+            return;
+        }
+
+        // Сортування: спочатку активні, потім по ID
+        var sortedEntities = entities
+            .OrderByDescending(e => e.IsActive)
+            .ThenByDescending(e => e.Id)
+            .ToList();
+
+        var buttons = sortedEntities.Select(e =>
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    $"{(e.IsActive ? "🟢" : "🔴")} #{e.Id} - {e.GiftName} ({e.MinPrice}-{e.MaxPrice})",
+                    $"entity_{e.Id}")
+            }
+        ).ToList();
+
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Створити замовлення", "create_order") });
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⚙️ Налаштувати моніторинг", "create_monitoring") });
+
+        if (userId == AdminUserId)
+        {
+            buttons.Add(new[]
+                { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ замовлення", "view_all_entities") });
+            buttons.Add(new[]
+                { InlineKeyboardButton.WithCallbackData("🔍 Переглянути конфігурації", "view_all_configs") });
+        }
+
+        var inlineKeyboard = new InlineKeyboardMarkup(buttons);
+        await _botClient.SendTextMessageAsync(chatId, "Ваші замовлення:", replyMarkup: inlineKeyboard);
     }
 
     private async Task ShowAllEntitiesAsync(long chatId, int page = 0)
@@ -161,6 +195,55 @@ public class MessageHandler
             $"Всі активні сутності ({sortedEntities.Count} всього):\nСторінка {page + 1}/{totalPages}",
             replyMarkup: inlineKeyboard);
     }
+
+    private async Task ShowAllMonitoringConfigsAsync(long chatId, int page = 0)
+    {
+        var configsResponse = await _apiService.GetMonitoringConfigsAsync();
+
+        if (configsResponse == null || !configsResponse.Success || configsResponse.Data.Count == 0)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "Немає жодної конфігурації моніторингу");
+            return;
+        }
+
+        // Sort by IsActive (active first) then by CreatedAt (newest first)
+        var sortedConfigs = configsResponse.Data
+            .OrderByDescending(c => c.IsActive)
+            .ThenByDescending(c => c.CreatedAt)
+            .ToList();
+
+        // Pagination - 10 per page
+        const int pageSize = 10;
+        var totalPages = (int)Math.Ceiling(sortedConfigs.Count / (double)pageSize);
+        page = Math.Max(0, Math.Min(page, totalPages - 1));
+        var pageConfigs = sortedConfigs.Skip(page * pageSize).Take(pageSize).ToList();
+
+        var buttons = pageConfigs.Select(c => new[]
+        {
+            InlineKeyboardButton.WithCallbackData(
+                $"{(c.IsActive ? "🟢" : "🔴")} #{c.Id} - {c.GiftName} ({c.Accounts.Count} акаунтів)",
+                $"config_{c.Id}")
+        }).ToList();
+
+        // Navigation
+        var navButtons = new List<InlineKeyboardButton>();
+        if (page > 0)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("◀️", $"configpage_{page - 1}"));
+        navButtons.Add(InlineKeyboardButton.WithCallbackData($"📄 {page + 1}/{totalPages}", "current_page"));
+        if (page < totalPages - 1)
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("▶️", $"configpage_{page + 1}"));
+
+        if (navButtons.Any())
+            buttons.Add(navButtons.ToArray());
+
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад до головного меню", "back_to_list") });
+
+        var inlineKeyboard = new InlineKeyboardMarkup(buttons);
+        await _botClient.SendTextMessageAsync(chatId,
+            $"Конфігурації моніторингу ({sortedConfigs.Count} всього):\nСторінка {page + 1}/{totalPages}",
+            replyMarkup: inlineKeyboard);
+    }
+
 
     private async Task ShowGiftSelectionAsync(long chatId, UserState state, int page = 0)
     {
@@ -453,6 +536,23 @@ public class MessageHandler
                 await ShowAllEntitiesAsync(chatId, page);
             }
 
+            return;
+        }
+
+        if (data == "view_all_configs")
+        {
+            if (userId == AdminUserId)
+                await ShowAllMonitoringConfigsAsync(chatId, 0);
+            return;
+        }
+
+        if (data.StartsWith("configpage_"))
+        {
+            if (userId == AdminUserId)
+            {
+                var page = int.Parse(data.Split('_')[1]);
+                await ShowAllMonitoringConfigsAsync(chatId, page);
+            }
             return;
         }
 
