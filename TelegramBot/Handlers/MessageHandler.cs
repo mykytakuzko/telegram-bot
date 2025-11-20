@@ -676,6 +676,39 @@ public class MessageHandler
             var configId = int.Parse(data.Split('_')[3]);
             await FinishMonitoringConfigEditAsync(chatId, userId, configId);
         }
+        else if (data.StartsWith("manage_accounts_"))
+        {
+            var configId = int.Parse(data.Split('_')[2]);
+            await ShowAccountManagementAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("toggle_account_"))
+        {
+            var parts = data.Split('_');
+            var accountIndex = int.Parse(parts[2]);
+            var configId = int.Parse(parts[3]);
+            await ToggleAccountAsync(chatId, userId, configId, accountIndex);
+        }
+        else if (data.StartsWith("remove_account_"))
+        {
+            var parts = data.Split('_');
+            var accountIndex = int.Parse(parts[2]);
+            var configId = int.Parse(parts[3]);
+            await RemoveAccountAsync(chatId, userId, configId, accountIndex);
+        }
+        else if (data.StartsWith("add_account_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[3]);
+            await StartAddAccountFlowAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("back_to_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[3]);
+            var configState = await _stateManager.GetStateAsync(userId);
+            if (configState != null)
+            {
+                await ShowUpdateMonitoringConfigMenuFromStateAsync(chatId, userId, configState);
+            }
+        }
         else if (data.StartsWith("config_") && int.TryParse(data.Split('_')[1], out var generalConfigId))
         {
             await ShowMonitoringConfigDetailsAsync(chatId, userId, generalConfigId);
@@ -2059,5 +2092,84 @@ public class MessageHandler
             await ShowAllMonitoringConfigsAsync(chatId, 0);
         else
             await ShowMainMenuAsync(chatId, userId);
+    }
+
+    private async Task ShowAccountManagementAsync(long chatId, long userId, int configId)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var buttons = new List<InlineKeyboardButton[]>();
+        
+        for (int i = 0; i < config.Accounts.Count; i++)
+        {
+            var account = config.Accounts[i];
+            var statusIcon = account.IsActive ? "✅" : "❌";
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"{statusIcon} User {account.UserId}", $"toggle_account_{i}_{configId}"),
+                InlineKeyboardButton.WithCallbackData("🗑", $"remove_account_{i}_{configId}")
+            });
+        }
+        
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Додати акаунт", $"add_account_config_{configId}") });
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", $"back_to_config_{configId}") });
+
+        var keyboard = new InlineKeyboardMarkup(buttons);
+
+        await _botClient.SendTextMessageAsync(chatId,
+            $"👥 Керування акаунтами\n\n🎁 Подарунок: {config.GiftName}\n\nНатисніть на акаунт щоб змінити статус або 🗑 щоб видалити:",
+            replyMarkup: keyboard);
+    }
+
+    private async Task ToggleAccountAsync(long chatId, long userId, int configId, int accountIndex)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null || accountIndex >= config.Accounts.Count) return;
+
+        config.Accounts[accountIndex].IsActive = !config.Accounts[accountIndex].IsActive;
+        state.CollectedData = JsonSerializer.Serialize(config);
+        await _stateManager.SaveStateAsync(state);
+
+        await ShowAccountManagementAsync(chatId, userId, configId);
+    }
+
+    private async Task RemoveAccountAsync(long chatId, long userId, int configId, int accountIndex)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null || accountIndex >= config.Accounts.Count) return;
+
+        config.Accounts.RemoveAt(accountIndex);
+        state.CollectedData = JsonSerializer.Serialize(config);
+        await _stateManager.SaveStateAsync(state);
+
+        await ShowAccountManagementAsync(chatId, userId, configId);
+    }
+
+    private async Task StartAddAccountFlowAsync(long chatId, long userId, int configId)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        state.CurrentFlow = "add_account_to_config";
+        state.CurrentStep = 0;
+        await _stateManager.SaveStateAsync(state);
+
+        var keyboard = CreateCancelKeyboard();
+        var message = await _botClient.SendTextMessageAsync(chatId,
+            "👤 Введіть User ID для нового акаунту:",
+            replyMarkup: keyboard);
+        
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
     }
 }
