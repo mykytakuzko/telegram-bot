@@ -278,20 +278,40 @@ public class ApiService
     {
         try
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Fetching monitoring config ID: {id}");
             var response = await _httpClient.GetAsync($"{_baseUrl}/api/marketplace/monitoring/configs/{id}");
+            
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API Response Status: {response.StatusCode}");
+            
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"Error fetching monitoring config {id}: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Error fetching monitoring config {id}: {response.StatusCode}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Error response body: {errorContent}");
                 return null;
             }
+            
             var content = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API Response content: {content}");
+            
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var configResponse = JsonSerializer.Deserialize<MonitoringConfigResponse>(content, options);
+            
+            if (configResponse?.Data != null)
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Successfully deserialized config {id}");
+            }
+            else
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Deserialization returned null for config {id}");
+            }
+            
             return configResponse?.Data;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error in GetMonitoringConfigByIdAsync: {ex.Message}");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Exception in GetMonitoringConfigByIdAsync: {ex.Message}");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Stack trace: {ex.StackTrace}");
             return null;
         }
     }
