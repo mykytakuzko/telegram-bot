@@ -88,6 +88,10 @@ public class MessageHandler
             {
                 await ProcessMonitoringFlowInputAsync(chatId, userId, text, state);
             }
+            else if (state.CurrentFlow != null && state.CurrentFlow.StartsWith("edit_config_"))
+            {
+                await ProcessMonitoringConfigEditInputAsync(chatId, userId, text, state);
+            }
             else
             {
                 await ProcessFlowInputAsync(chatId, userId, text, state);
@@ -665,6 +669,28 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await DeleteEntityAsync(chatId, userId, entityId);
         }
+        else if (data.StartsWith("update_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[2]);
+            await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("delete_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[2]);
+            await DeleteMonitoringConfigAsync(chatId, userId, configId);
+        }
+        else if (data.StartsWith("edit_config_"))
+        {
+            var parts = data.Split('_');
+            var field = parts[2];
+            var configId = int.Parse(parts[3]);
+            await StartEditMonitoringConfigFieldAsync(chatId, userId, configId, field);
+        }
+        else if (data.StartsWith("finish_edit_config_"))
+        {
+            var configId = int.Parse(data.Split('_')[3]);
+            await FinishMonitoringConfigEditAsync(chatId, userId, configId);
+        }
         else if (data == "create_order")
         {
             await StartCreateFlowAsync(chatId, userId);
@@ -990,6 +1016,8 @@ public class MessageHandler
 
         var keyboard = new InlineKeyboardMarkup(new[]
         {
+            new[] { InlineKeyboardButton.WithCallbackData("🔄 Оновити", $"update_config_{config.Id}") },
+            new[] { InlineKeyboardButton.WithCallbackData("🗑 Видалити", $"delete_config_{config.Id}") },
             new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад до списку", "view_all_configs") }
         });
 
@@ -1864,5 +1892,139 @@ public class MessageHandler
         }
 
         await ShowMainMenuAsync(chatId, userId);
+    }
+
+    private async Task ShowUpdateMonitoringConfigMenuAsync(long chatId, long userId, int configId)
+    {
+        var config = await _apiService.GetMonitoringConfigByIdAsync(configId);
+        if (config == null)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "Конфігурацію не знайдено");
+            return;
+        }
+
+        var state = new UserState
+        {
+            TelegramUserId = userId,
+            CurrentFlow = "select_config_field_update",
+            EntityId = configId.ToString(),
+            CollectedData = JsonSerializer.Serialize(config)
+        };
+        await _stateManager.SaveStateAsync(state);
+
+        var accountsList = string.Join("\n", config.Accounts.Select((a, i) =>
+            $"  {i + 1}. User ID: {a.UserId} ({(a.IsActive ? "✅" : "❌")})"
+        ));
+
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData($"⏱ Інтервал: {config.AccountInterval} мс", $"edit_config_interval_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData($"📊 Макс. пакетів: {config.MaxBatches}", $"edit_config_batches_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData($"✅ Активна: {(config.IsActive ? "Так" : "Ні")}", $"edit_config_active_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_config_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        await _botClient.SendTextMessageAsync(chatId,
+            $"⚙️ Редагування конфігурації #{config.Id}\n\n🎁 Подарунок: {config.GiftName}\n👥 Акаунти:\n{accountsList}\n\nОберіть поле для редагування:",
+            replyMarkup: keyboard);
+    }
+
+    private async Task StartEditMonitoringConfigFieldAsync(long chatId, long userId, int configId, string field)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        state.CurrentFlow = $"edit_config_{field}";
+        state.CurrentStep = 0;
+
+        var (prompt, keyboard) = field switch
+        {
+            "interval" => ("⏱ Введіть новий інтервал між акаунтами (мс):", CreateCancelKeyboard()),
+            "batches" => ("📊 Введіть нову максимальну кількість пакетів:", CreateCancelKeyboard()),
+            "active" => ("✅ Активна конфігурація?", CreateYesNoKeyboard()),
+            _ => ("Введіть нове значення:", CreateCancelKeyboard())
+        };
+
+        var message = await _botClient.SendTextMessageAsync(chatId, prompt, replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task ProcessMonitoringConfigEditInputAsync(long chatId, long userId, string input, UserState state)
+    {
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var field = state.CurrentFlow!.Replace("edit_config_", "");
+
+        switch (field)
+        {
+            case "interval":
+                config.AccountInterval = int.TryParse(input, out var interval) ? interval : config.AccountInterval;
+                break;
+            case "batches":
+                config.MaxBatches = int.TryParse(input, out var batches) ? batches : config.MaxBatches;
+                break;
+            case "active":
+                config.IsActive = input.ToLower() == "yes" || input.ToLower() == "так";
+                break;
+        }
+
+        state.CollectedData = JsonSerializer.Serialize(config);
+        await _stateManager.SaveStateAsync(state);
+
+        var msg = await _botClient.SendTextMessageAsync(chatId, "✅ Поле оновлено!");
+        try
+        {
+            await Task.Delay(1000);
+            await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
+        }
+        catch { }
+
+        await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, int.Parse(state.EntityId!));
+    }
+
+    private async Task FinishMonitoringConfigEditAsync(long chatId, long userId, int configId)
+    {
+        var state = await _stateManager.GetStateAsync(userId);
+        if (state == null) return;
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var success = await _apiService.UpdateMonitoringConfigAsync(configId, config);
+        var statusMessage = await _botClient.SendTextMessageAsync(chatId,
+            success ? "✅ Конфігурацію оновлено!" : "❌ Помилка оновлення");
+
+        await _stateManager.ClearStateAsync(userId);
+
+        try
+        {
+            await Task.Delay(2000);
+            await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
+        }
+        catch { }
+
+        await ShowMainMenuAsync(chatId, userId);
+    }
+
+    private async Task DeleteMonitoringConfigAsync(long chatId, long userId, int configId)
+    {
+        var success = await _apiService.DeleteMonitoringConfigAsync(configId);
+        var statusMessage = await _botClient.SendTextMessageAsync(chatId,
+            success ? "✅ Конфігурацію видалено!" : "❌ Помилка видалення");
+
+        try
+        {
+            await Task.Delay(2000);
+            await _botClient.DeleteMessageAsync(chatId, statusMessage.MessageId);
+        }
+        catch { }
+
+        if (userId == AdminUserId)
+            await ShowAllMonitoringConfigsAsync(chatId, 0);
+        else
+            await ShowMainMenuAsync(chatId, userId);
     }
 }

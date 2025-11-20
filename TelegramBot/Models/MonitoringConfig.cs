@@ -14,6 +14,18 @@ public class MonitoringConfigsResponse
     public List<MonitoringConfig> Data { get; set; } = new();
 }
 
+public class MonitoringConfigResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    
+    [JsonPropertyName("data")]
+    public MonitoringConfig? Data { get; set; }
+}
+
 public class MonitoringConfig
 {
     [JsonPropertyName("id")]

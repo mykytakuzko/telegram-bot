@@ -273,4 +273,73 @@ public class ApiService
             return null;
         }
     }
+
+    public async Task<MonitoringConfig?> GetMonitoringConfigByIdAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/marketplace/monitoring/configs/{id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Error fetching monitoring config {id}: {response.StatusCode}");
+                return null;
+            }
+            var content = await response.Content.ReadAsStringAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var configResponse = JsonSerializer.Deserialize<MonitoringConfigResponse>(content, options);
+            return configResponse?.Data;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetMonitoringConfigByIdAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateMonitoringConfigAsync(int id, MonitoringConfig config)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(config);
+            Console.WriteLine($"Updating monitoring config {id}: {json}");
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PutAsync($"{_baseUrl}/api/marketplace/monitoring/configs/{id}", content);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error updating monitoring config: {response.StatusCode}");
+                Console.WriteLine($"Response body: {errorContent}");
+                return false;
+            }
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in UpdateMonitoringConfigAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteMonitoringConfigAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"{_baseUrl}/api/marketplace/monitoring/configs/{id}");
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Error deleting monitoring config {id}: {response.StatusCode}");
+                return false;
+            }
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in DeleteMonitoringConfigAsync: {ex.Message}");
+            return false;
+        }
+    }
 }
