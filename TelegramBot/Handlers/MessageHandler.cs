@@ -1988,7 +1988,32 @@ public class MessageHandler
         }
         catch { }
 
-        await ShowUpdateMonitoringConfigMenuAsync(chatId, userId, int.Parse(state.EntityId!));
+        // Show menu from state to preserve changes
+        await ShowUpdateMonitoringConfigMenuFromStateAsync(chatId, userId, state);
+    }
+
+    private async Task ShowUpdateMonitoringConfigMenuFromStateAsync(long chatId, long userId, UserState state)
+    {
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var configId = int.Parse(state.EntityId!);
+        var accountsList = string.Join("\n", config.Accounts.Select((a, i) =>
+            $"  {i + 1}. User ID: {a.UserId} ({(a.IsActive ? "✅" : "❌")})"
+        ));
+
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData($"⏱ Інтервал: {config.AccountInterval} мс", $"edit_config_interval_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData($"📊 Макс. пакетів: {config.MaxBatches}", $"edit_config_batches_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData($"✅ Активна: {(config.IsActive ? "Так" : "Ні")}", $"edit_config_active_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Завершити оновлення", $"finish_edit_config_{configId}") },
+            new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") }
+        });
+
+        await _botClient.SendTextMessageAsync(chatId,
+            $"⚙️ Редагування конфігурації #{config.Id}\n\n🎁 Подарунок: {config.GiftName}\n👥 Акаунти:\n{accountsList}\n\nОберіть поле для редагування:",
+            replyMarkup: keyboard);
     }
 
     private async Task FinishMonitoringConfigEditAsync(long chatId, long userId, int configId)

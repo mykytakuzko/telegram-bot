@@ -322,23 +322,25 @@ public class ApiService
         try
         {
             var json = JsonSerializer.Serialize(config);
-            Console.WriteLine($"Updating monitoring config {id}: {json}");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Updating monitoring config {id}");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Request body: {json}");
+            
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PutAsync($"{_baseUrl}/api/marketplace/monitoring/configs/{id}", content);
+            
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Update response status: {response.StatusCode}");
             
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Error updating monitoring config: {response.StatusCode}");
-                Console.WriteLine($"Response body: {errorContent}");
-                return false;
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Update failed: {errorContent}");
             }
             
-            return true;
+            return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error in UpdateMonitoringConfigAsync: {ex.Message}");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Error updating monitoring config: {ex.Message}");
             return false;
         }
     }
