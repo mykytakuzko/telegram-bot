@@ -295,9 +295,10 @@ public class ApiService
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API Response content: {content}");
             
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var configResponse = JsonSerializer.Deserialize<MonitoringConfigResponse>(content, options);
+            // API returns the config directly, not wrapped in a "data" field
+            var config = JsonSerializer.Deserialize<MonitoringConfig>(content, options);
             
-            if (configResponse?.Data != null)
+            if (config != null)
             {
                 Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Successfully deserialized config {id}");
             }
@@ -306,7 +307,7 @@ public class ApiService
                 Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Deserialization returned null for config {id}");
             }
             
-            return configResponse?.Data;
+            return config;
         }
         catch (Exception ex)
         {
