@@ -96,6 +96,10 @@ public class MessageHandler
             {
                 await ProcessMonitoringConfigEditInputAsync(chatId, userId, text, state);
             }
+            else if (state.CurrentFlow == "add_account_to_config")
+            {
+                await ProcessAddAccountInputAsync(chatId, userId, text, state);
+            }
             else
             {
                 await ProcessFlowInputAsync(chatId, userId, text, state);
@@ -2151,6 +2155,43 @@ public class MessageHandler
         config.Accounts.RemoveAt(accountIndex);
         state.CollectedData = JsonSerializer.Serialize(config);
         await _stateManager.SaveStateAsync(state);
+
+        await ShowAccountManagementAsync(chatId, userId, configId);
+    }
+
+
+    private async Task ProcessAddAccountInputAsync(long chatId, long userId, string input, UserState state)
+    {
+        if (!long.TryParse(input, out var newUserId))
+        {
+            await _botClient.SendTextMessageAsync(chatId, "❌ Невірний User ID. Введіть число:");
+            return;
+        }
+
+        var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
+        if (config == null) return;
+
+        var configId = int.Parse(state.EntityId!);
+        var giftName = config.GiftName;
+
+        var newAccount = new MonitoringAccount
+        {
+            UserId = newUserId,
+            GiftName = giftName,
+            IsActive = true
+        };
+
+        config.Accounts.Add(newAccount);
+        state.CollectedData = JsonSerializer.Serialize(config);
+        await _stateManager.SaveStateAsync(state);
+
+        var msg = await _botClient.SendTextMessageAsync(chatId, "✅ Акаунт додано!");
+        try
+        {
+            await Task.Delay(1000);
+            await _botClient.DeleteMessageAsync(chatId, msg.MessageId);
+        }
+        catch { }
 
         await ShowAccountManagementAsync(chatId, userId, configId);
     }
