@@ -757,6 +757,8 @@ public class MessageHandler
             var currentState = await _stateManager.GetStateAsync(userId);
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "skip", currentState);
+            else if (currentState?.CurrentFlow != null && currentState.CurrentFlow.StartsWith("edit_config_"))
+                await ProcessMonitoringConfigEditInputAsync(chatId, userId, "skip", currentState);
             else
                 await ProcessFlowInputAsync(chatId, userId, "skip", currentState);
         }
@@ -765,6 +767,8 @@ public class MessageHandler
             var currentState = await _stateManager.GetStateAsync(userId);
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "yes", currentState);
+            else if (currentState?.CurrentFlow != null && currentState.CurrentFlow.StartsWith("edit_config_"))
+                await ProcessMonitoringConfigEditInputAsync(chatId, userId, "yes", currentState);
             else
                 await ProcessFlowInputAsync(chatId, userId, "yes", currentState);
         }
@@ -773,6 +777,8 @@ public class MessageHandler
             var currentState = await _stateManager.GetStateAsync(userId);
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "no", currentState);
+            else if (currentState?.CurrentFlow != null && currentState.CurrentFlow.StartsWith("edit_config_"))
+                await ProcessMonitoringConfigEditInputAsync(chatId, userId, "no", currentState);
             else
                 await ProcessFlowInputAsync(chatId, userId, "no", currentState);
         }
