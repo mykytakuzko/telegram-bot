@@ -124,11 +124,19 @@ public class MessageHandler
         var entities = await _apiService.GetAllByUserAsync(userId);
         if (entities == null || entities.Count == 0)
         {
-            var keyboard = new InlineKeyboardMarkup(new[]
+            var menuButtons = new List<InlineKeyboardButton[]>
             {
                 new[] { InlineKeyboardButton.WithCallbackData("➕ Створити замовлення", "create_order") },
                 new[] { InlineKeyboardButton.WithCallbackData("⚙️ Налаштувати моніторинг", "create_monitoring") }
-            });
+            };
+            
+            if (userId == AdminUserId)
+            {
+                menuButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("👁 Переглянути ВСІ замовлення", "view_all_entities") });
+                menuButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("🔍 Переглянути конфігурації", "view_all_configs") });
+            }
+            
+            var keyboard = new InlineKeyboardMarkup(menuButtons);
             await _botClient.SendTextMessageAsync(chatId, "У вас немає замовлень", replyMarkup: keyboard);
             return;
         }
