@@ -96,23 +96,31 @@ public class ApiService
         }
     }
 
-    public async Task<bool> CreateAsync(ResoldGiftOrder order)
+    public async Task<(bool success, string? error)> CreateAsync(ResoldGiftOrder order)
     {
         try
         {
             var json = JsonSerializer.Serialize(order);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync($"{_baseUrl}/api/marketplace/resold-gift-order", content);
-            return response.IsSuccessStatusCode;
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error creating order: {response.StatusCode} - {errorContent}");
+                return (false, $"Помилка створення ({response.StatusCode}): {errorContent}");
+            }
+            
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in CreateAsync: {ex.Message}");
-            return false;
+            return (false, $"Помилка створення: {ex.Message}");
         }
     }
 
-    public async Task<bool> UpdateAsync(int id, ResoldGiftOrder order)
+    public async Task<(bool success, string? error)> UpdateAsync(int id, ResoldGiftOrder order)
     {
         try
         {
@@ -120,26 +128,42 @@ public class ApiService
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PutAsync($"{_baseUrl}/api/marketplace/resold-gift-order/{id}", content);
             Console.WriteLine($"Response for update {response}");
-            return response.IsSuccessStatusCode;
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error updating order {id}: {response.StatusCode} - {errorContent}");
+                return (false, $"Помилка оновлення ({response.StatusCode}): {errorContent}");
+            }
+            
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in UpdateAsync: {ex.Message}");
-            return false;
+            return (false, $"Помилка оновлення: {ex.Message}");
         }
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task<(bool success, string? error)> DeleteAsync(int id)
     {
         try
         {
             var response = await _httpClient.DeleteAsync($"{_baseUrl}/api/marketplace/resold-gift-order/{id}");
-            return response.IsSuccessStatusCode;
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error deleting order {id}: {response.StatusCode} - {errorContent}");
+                return (false, $"Помилка видалення ({response.StatusCode}): {errorContent}");
+            }
+            
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in DeleteAsync: {ex.Message}");
-            return false;
+            return (false, $"Помилка видалення: {ex.Message}");
         }
     }
 
@@ -227,7 +251,7 @@ public class ApiService
         }
     }
 
-    public async Task<bool> CreateMonitoringConfigAsync(MonitoringConfig config)
+    public async Task<(bool success, string? error)> CreateMonitoringConfigAsync(MonitoringConfig config)
     {
         try
         {
@@ -241,15 +265,15 @@ public class ApiService
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"Error creating monitoring config: {response.StatusCode}");
                 Console.WriteLine($"Response body: {errorContent}");
-                return false;
+                return (false, $"Помилка створення ({response.StatusCode}): {errorContent}");
             }
             
-            return true;
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in CreateMonitoringConfigAsync: {ex.Message}");
-            return false;
+            return (false, $"Помилка створення: {ex.Message}");
         }
     }
 
@@ -317,7 +341,7 @@ public class ApiService
         }
     }
 
-    public async Task<bool> UpdateMonitoringConfigAsync(int id, MonitoringConfig config)
+    public async Task<(bool success, string? error)> UpdateMonitoringConfigAsync(int id, MonitoringConfig config)
     {
         try
         {
@@ -334,18 +358,19 @@ public class ApiService
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Update failed: {errorContent}");
+                return (false, $"Помилка оновлення ({response.StatusCode}): {errorContent}");
             }
             
-            return response.IsSuccessStatusCode;
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Error updating monitoring config: {ex.Message}");
-            return false;
+            return (false, $"Помилка оновлення: {ex.Message}");
         }
     }
 
-    public async Task<bool> DeleteMonitoringConfigAsync(int id)
+    public async Task<(bool success, string? error)> DeleteMonitoringConfigAsync(int id)
     {
         try
         {
@@ -353,16 +378,17 @@ public class ApiService
             
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"Error deleting monitoring config {id}: {response.StatusCode}");
-                return false;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error deleting monitoring config {id}: {response.StatusCode} - {errorContent}");
+                return (false, $"Помилка видалення ({response.StatusCode}): {errorContent}");
             }
             
-            return true;
+            return (true, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in DeleteMonitoringConfigAsync: {ex.Message}");
-            return false;
+            return (false, $"Помилка видалення: {ex.Message}");
         }
     }
 }

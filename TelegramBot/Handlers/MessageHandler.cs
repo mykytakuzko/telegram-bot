@@ -1448,9 +1448,9 @@ public class MessageHandler
         var order = JsonSerializer.Deserialize<ResoldGiftOrder>(state.CollectedData!);
         if (order == null) return;
 
-        var success = await _apiService.UpdateAsync(entityId, order);
+        var (success, error) = await _apiService.UpdateAsync(entityId, order);
         var statusMessage =
-            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
+            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : $"❌ {error}");
 
         await _stateManager.ClearStateAsync(userId);
 
@@ -1670,9 +1670,9 @@ public class MessageHandler
         var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
         if (config == null) return;
 
-        var success = await _apiService.CreateMonitoringConfigAsync(config);
+        var (success, error) = await _apiService.CreateMonitoringConfigAsync(config);
         var statusMessage = await _botClient.SendTextMessageAsync(chatId,
-            success ? "✅ Конфігурацію моніторингу створено!" : "❌ Помилка створення");
+            success ? "✅ Конфігурацію моніторингу створено!" : $"❌ {error}");
 
         await _stateManager.ClearStateAsync(state.TelegramUserId);
 
@@ -1893,20 +1893,21 @@ public class MessageHandler
         if (order == null) return;
 
         bool success;
+        string? error;
         Message statusMessage;
 
         if (state.CurrentFlow == "create")
         {
-            success = await _apiService.CreateAsync(order);
+            (success, error) = await _apiService.CreateAsync(order);
             statusMessage =
-                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність створено!" : "❌ Помилка створення");
+                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність створено!" : $"❌ {error}");
         }
         else
         {
             var entityId = int.Parse(state.EntityId!);
-            success = await _apiService.UpdateAsync(entityId, order);
+            (success, error) = await _apiService.UpdateAsync(entityId, order);
             statusMessage =
-                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : "❌ Помилка оновлення");
+                await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність оновлено!" : $"❌ {error}");
         }
 
         await _stateManager.ClearStateAsync(state.TelegramUserId);
@@ -1926,9 +1927,9 @@ public class MessageHandler
 
     private async Task DeleteEntityAsync(long chatId, long userId, int entityId)
     {
-        var success = await _apiService.DeleteAsync(entityId);
+        var (success, error) = await _apiService.DeleteAsync(entityId);
         var statusMessage =
-            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність видалено!" : "❌ Помилка видалення");
+            await _botClient.SendTextMessageAsync(chatId, success ? "✅ Сутність видалено!" : $"❌ {error}");
 
         // Видаляємо повідомлення про статус через 2 секунди
         try
@@ -2069,9 +2070,9 @@ public class MessageHandler
         var config = JsonSerializer.Deserialize<MonitoringConfig>(state.CollectedData!);
         if (config == null) return;
 
-        var success = await _apiService.UpdateMonitoringConfigAsync(configId, config);
+        var (success, error) = await _apiService.UpdateMonitoringConfigAsync(configId, config);
         var statusMessage = await _botClient.SendTextMessageAsync(chatId,
-            success ? "✅ Конфігурацію оновлено!" : "❌ Помилка оновлення");
+            success ? "✅ Конфігурацію оновлено!" : $"❌ {error}");
 
         await _stateManager.ClearStateAsync(userId);
 
@@ -2087,9 +2088,9 @@ public class MessageHandler
 
     private async Task DeleteMonitoringConfigAsync(long chatId, long userId, int configId)
     {
-        var success = await _apiService.DeleteMonitoringConfigAsync(configId);
+        var (success, error) = await _apiService.DeleteMonitoringConfigAsync(configId);
         var statusMessage = await _botClient.SendTextMessageAsync(chatId,
-            success ? "✅ Конфігурацію видалено!" : "❌ Помилка видалення");
+            success ? "✅ Конфігурацію видалено!" : $"❌ {error}");
 
         try
         {
