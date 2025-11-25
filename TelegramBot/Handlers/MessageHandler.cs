@@ -1185,23 +1185,23 @@ public class MessageHandler
             await _stateManager.SaveStateAsync(state);
             await AskNextStepAsync(chatId, state, order);
         }
-        else if (callbackData == "activity_menu")
+        else if (data == "activity_menu")
         {
             await ShowActivityMenuAsync(chatId, userId);
         }
-        else if (callbackData == "activity_create_config")
+        else if (data == "activity_create_config")
         {
             await CreateActivityConfigAsync(chatId, userId);
         }
-        else if (callbackData == "activity_toggle")
+        else if (data == "activity_toggle")
         {
             await ToggleActivitySimulationAsync(chatId, userId);
         }
-        else if (callbackData == "activity_history")
+        else if (data == "activity_history")
         {
             await ShowActivityHistoryAsync(chatId, userId);
         }
-        else if (callbackData == "activity_templates")
+        else if (data == "activity_templates")
         {
             await ShowMessageTemplatesAsync(chatId, userId);
         }
