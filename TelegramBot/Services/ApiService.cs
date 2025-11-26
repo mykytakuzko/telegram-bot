@@ -601,5 +601,5 @@ public class ApiService
             Console.WriteLine($"Error in GetUserByTelegramIdAsync: {ex.Message}");
             return null;
         }
-    }ƒ
+    }
 }
