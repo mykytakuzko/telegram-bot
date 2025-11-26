@@ -3401,7 +3401,7 @@ public class MessageHandler
         {
             TelegramUserId = chatId,
             CurrentFlow = $"edit_activity_{configId}_{field}",
-            CollectedData = new Dictionary<string, string>(),
+            CollectedData = JsonSerializer.Serialize(new Dictionary<string, string>()), // Serialize to string
             UpdatedAt = DateTime.UtcNow,
         };
         await _stateManager.SaveStateAsync(state);
