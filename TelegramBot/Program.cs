@@ -16,29 +16,32 @@ var host = Host.CreateDefaultBuilder(args)
         logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
         logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
     })
-    .ConfigureServices((context, services) =>
-    {
-        var configuration = context.Configuration;
-
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
-
-        services.AddSingleton(sp =>
+    .ConfigureServices(
+        (context, services) =>
         {
-            var apiConfig = configuration.GetSection("Api");
-            return new ApiService(apiConfig["BaseUrl"]!, apiConfig["BearerToken"]!);
-        });
+            var configuration = context.Configuration;
 
-        services.AddSingleton<ITelegramBotClient>(sp =>
-        {
-            var token = configuration.GetSection("TelegramBot")["Token"]!;
-            return new TelegramBotClient(token);
-        });
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+            );
 
-        services.AddScoped<StateManager>();
-        services.AddScoped<MessageHandler>();
-        services.AddSingleton<BotService>();
-    })
+            services.AddSingleton(sp =>
+            {
+                var apiConfig = configuration.GetSection("Api");
+                return new ApiService(apiConfig["BaseUrl"]!, apiConfig["BearerToken"]!);
+            });
+
+            services.AddSingleton<ITelegramBotClient>(sp =>
+            {
+                var token = configuration.GetSection("TelegramBot")["Token"]!;
+                return new TelegramBotClient(token);
+            });
+
+            services.AddScoped<StateManager>();
+            services.AddScoped<MessageHandler>();
+            services.AddSingleton<BotService>();
+        }
+    )
     .Build();
 
 using (var scope = host.Services.CreateScope())

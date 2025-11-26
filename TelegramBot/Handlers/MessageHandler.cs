@@ -2997,13 +2997,23 @@ public class MessageHandler
         }
     }
 
-    private async Task CreateActivityConfigAsync(long chatId, long userId)
+    private async Task CreateActivityConfigAsync(long chatId, long telegramUserId)
     {
         try
         {
+            var user = await _apiService.GetUserByTelegramIdAsync(telegramUserId);
+
+            if (user == null)
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId,
+                    "❌ Користувача не знайдено в базі даних."
+                );
+                return;
+            }
             var request = new CreateActivitySimulationRequest
             {
-                UserId = userId,
+                UserId = user.Id,
                 Enabled = false,
                 PauseDuringMonitoring = true,
             };
@@ -3016,7 +3026,7 @@ public class MessageHandler
                     parseMode: ParseMode.Html
                 );
                 await Task.Delay(2000);
-                await ShowActivityMenuAsync(chatId, userId);
+                await ShowActivityMenuAsync(chatId, telegramUserId);
             }
             else
             {

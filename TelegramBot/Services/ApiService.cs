@@ -581,4 +581,25 @@ public class ApiService
             return null;
         }
     }
+
+    public async Task<User?> GetUserByTelegramIdAsync(long telegramUserId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/profile/telegram/{telegramUserId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Error getting user by Telegram ID: {response.StatusCode}");
+                return null;
+            }
+            var content = await response.Content.ReadAsStringAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return JsonSerializer.Deserialize<User>(content, options);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetUserByTelegramIdAsync: {ex.Message}");
+            return null;
+        }
+    }ƒ
 }
