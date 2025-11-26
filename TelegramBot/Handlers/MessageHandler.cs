@@ -141,13 +141,6 @@ public class MessageHandler
                         "create_monitoring"
                     ),
                 },
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData(
-                        "🎭 Симуляція активності",
-                        "activity_menu"
-                    ),
-                },
             };
 
             if (userId == AdminUserId)
@@ -1284,6 +1277,11 @@ public class MessageHandler
         {
             var id = long.Parse(data.Split('_').Last());
             await ShowEditActivityConfigMenuAsync(chatId, id);
+        }
+        else if (data.StartsWith("admin_activity_delete_"))
+        {
+            var id = long.Parse(data.Split('_').Last());
+            await DeleteActivityConfigAsync(chatId, id);
         }
     }
 
@@ -3373,6 +3371,13 @@ public class MessageHandler
                 },
                 new[]
                 {
+                    InlineKeyboardButton.WithCallbackData(
+                        "🗑 Видалити",
+                        $"admin_activity_delete_{config.Id}"
+                    ),
+                },
+                new[]
+                {
                     InlineKeyboardButton.WithCallbackData("🔙 Назад", "admin_view_all_activity"),
                 },
             };
@@ -3396,29 +3401,64 @@ public class MessageHandler
             new[]
             {
                 InlineKeyboardButton.WithCallbackData(
-                    "Мін. активностей",
+                    "✅ Увімкнено/Вимкнено",
+                    $"edit_act_field_{configId}_enabled"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "⏸ Пауза при моніторингу",
+                    $"edit_act_field_{configId}_pauseDuringMonitoring"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "📊 Мін. активностей",
                     $"edit_act_field_{configId}_minAct"
                 ),
             },
             new[]
             {
                 InlineKeyboardButton.WithCallbackData(
-                    "Макс. активностей",
+                    "📊 Макс. активностей",
                     $"edit_act_field_{configId}_maxAct"
                 ),
             },
             new[]
             {
                 InlineKeyboardButton.WithCallbackData(
-                    "Мін. інтервал",
+                    "⏱ Мін. інтервал (хв)",
                     $"edit_act_field_{configId}_minInt"
                 ),
             },
             new[]
             {
                 InlineKeyboardButton.WithCallbackData(
-                    "Макс. інтервал",
+                    "⏱ Макс. інтервал (хв)",
                     $"edit_act_field_{configId}_maxInt"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "📖 Вага читання",
+                    $"edit_act_field_{configId}_readWeight"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "❤️ Вага лайків",
+                    $"edit_act_field_{configId}_likeWeight"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "💬 Вага повідомлень",
+                    $"edit_act_field_{configId}_sendWeight"
                 ),
             },
             new[]
@@ -3447,10 +3487,51 @@ public class MessageHandler
         };
         await _stateManager.SaveStateAsync(state);
 
+        // Determine prompt and keyboard based on field type
+        string prompt;
+        InlineKeyboardMarkup? keyboard = null;
+
+        switch (field)
+        {
+            case "enabled":
+                prompt = "✅ Увімкнути симуляцію активності?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "pauseDuringMonitoring":
+                prompt = "⏸ Ставити на паузу під час моніторингу?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "minAct":
+                prompt = "📊 Введіть мінімальну кількість активностей на день:";
+                break;
+            case "maxAct":
+                prompt = "📊 Введіть максимальну кількість активностей на день:";
+                break;
+            case "minInt":
+                prompt = "⏱ Введіть мінімальний інтервал (хвилини):";
+                break;
+            case "maxInt":
+                prompt = "⏱ Введіть максимальний інтервал (хвилини):";
+                break;
+            case "readWeight":
+                prompt = "📖 Введіть вагу для читання каналів:";
+                break;
+            case "likeWeight":
+                prompt = "❤️ Введіть вагу для лайків:";
+                break;
+            case "sendWeight":
+                prompt = "💬 Введіть вагу для відправки повідомлень:";
+                break;
+            default:
+                prompt = $"Введіть нове значення для <b>{field}</b>:";
+                break;
+        }
+
         await _botClient.SendTextMessageAsync(
             chatId,
-            $"Введіть нове значення для <b>{field}</b>:",
-            parseMode: ParseMode.Html
+            prompt,
+            parseMode: ParseMode.Html,
+            replyMarkup: keyboard
         );
     }
 
@@ -3465,14 +3546,16 @@ public class MessageHandler
             var parts = state.CurrentFlow.Split('_'); // edit_activity_{id}_{field}
             var configId = long.Parse(parts[2]);
             var field = parts[3];
-            if (!int.TryParse(input, out int newValue))
-            {
-                await _botClient.SendTextMessageAsync(chatId, "❌ Будь ласка, введіть число.");
-                return;
-            }
+
             // Fetch current config to update
             var configs = await _apiService.GetAllActivityConfigsAsync();
             var config = configs?.FirstOrDefault(c => c.Id == configId);
+
+            if (config == null)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Конфігурацію не знайдено.");
+                return;
+            }
 
             // Map to ActivitySimulationConfig (request DTO)
             var updateDto = new ActivitySimulationConfig
@@ -3487,23 +3570,131 @@ public class MessageHandler
                 ReadChannelWeight = config.ReadChannelWeight,
                 LikePostWeight = config.LikePostWeight,
                 SendMessageWeight = config.SendMessageWeight,
-                Targets = new List<ActivitySimulationTarget>(), // Simplified, usually you'd map existing targets
+                Targets = new List<ActivitySimulationTarget>(), // Simplified
             };
+
+            // Process input based on field type
             switch (field)
             {
+                case "enabled":
+                    if (input.ToLower() == "yes" || input.ToLower() == "так")
+                        updateDto.Enabled = true;
+                    else if (input.ToLower() == "no" || input.ToLower() == "ні")
+                        updateDto.Enabled = false;
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, оберіть 'Так' або 'Ні'."
+                        );
+                        return;
+                    }
+                    break;
+
+                case "pauseDuringMonitoring":
+                    if (input.ToLower() == "yes" || input.ToLower() == "так")
+                        updateDto.PauseDuringMonitoring = true;
+                    else if (input.ToLower() == "no" || input.ToLower() == "ні")
+                        updateDto.PauseDuringMonitoring = false;
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, оберіть 'Так' або 'Ні'."
+                        );
+                        return;
+                    }
+                    break;
+
                 case "minAct":
-                    updateDto.MinActivitiesPerDay = newValue;
+                    if (!int.TryParse(input, out int minAct))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.MinActivitiesPerDay = minAct;
                     break;
+
                 case "maxAct":
-                    updateDto.MaxActivitiesPerDay = newValue;
+                    if (!int.TryParse(input, out int maxAct))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.MaxActivitiesPerDay = maxAct;
                     break;
+
                 case "minInt":
-                    updateDto.MinIntervalMinutes = newValue;
+                    if (!int.TryParse(input, out int minInt))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.MinIntervalMinutes = minInt;
                     break;
+
                 case "maxInt":
-                    updateDto.MaxIntervalMinutes = newValue;
+                    if (!int.TryParse(input, out int maxInt))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.MaxIntervalMinutes = maxInt;
                     break;
+
+                case "readWeight":
+                    if (!int.TryParse(input, out int readWeight))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.ReadChannelWeight = readWeight;
+                    break;
+
+                case "likeWeight":
+                    if (!int.TryParse(input, out int likeWeight))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.LikePostWeight = likeWeight;
+                    break;
+
+                case "sendWeight":
+                    if (!int.TryParse(input, out int sendWeight))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId,
+                            "❌ Будь ласка, введіть число."
+                        );
+                        return;
+                    }
+                    updateDto.SendMessageWeight = sendWeight;
+                    break;
+
+                default:
+                    await _botClient.SendTextMessageAsync(chatId, "❌ Невідоме поле.");
+                    return;
             }
+
             var (success, error) = await _apiService.UpdateActivityConfigAsync(configId, updateDto);
 
             if (success)
@@ -3521,6 +3712,29 @@ public class MessageHandler
         {
             Console.WriteLine($"Error processing edit: {ex.Message}");
             await _botClient.SendTextMessageAsync(chatId, "❌ Сталася помилка.");
+        }
+    }
+
+    private async Task DeleteActivityConfigAsync(long chatId, long configId)
+    {
+        try
+        {
+            var (success, error) = await _apiService.DeleteActivityConfigAsync(configId);
+            if (success)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "✅ Конфігурацію видалено!");
+                await Task.Delay(1000);
+                await ShowAllActivityConfigsAsync(chatId);
+            }
+            else
+            {
+                await _botClient.SendTextMessageAsync(chatId, $"❌ Помилка: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting activity config: {ex.Message}");
+            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка видалення.");
         }
     }
 }

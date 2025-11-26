@@ -652,4 +652,28 @@ public class ApiService
             return (false, ex.Message);
         }
     }
+
+    public async Task<(bool success, string? error)> DeleteActivityConfigAsync(long configId)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync(
+                $"{_baseUrl}/api/marketplace/activity-simulation/{configId}"
+            );
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine(
+                    $"Error deleting activity config {configId}: {response.StatusCode} - {errorContent}"
+                );
+                return (false, $"Помилка видалення ({response.StatusCode}): {errorContent}");
+            }
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in DeleteActivityConfigAsync: {ex.Message}");
+            return (false, $"Помилка видалення: {ex.Message}");
+        }
+    }
 }
