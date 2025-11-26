@@ -2935,7 +2935,13 @@ public class MessageHandler
     {
         try
         {
-            var config = await _apiService.GetActivityConfigByUserAsync(userId);
+            var user = await _apiService.GetUserByTelegramIdAsync(userId);
+            ActivitySimulationConfig? config = null;
+            if (user != null)
+            {
+                config = await _apiService.GetActivityConfigByUserAsync(user.Id);
+            }
+
             string messageText;
             List<InlineKeyboardButton[]> buttons;
             if (config == null)
@@ -3044,7 +3050,14 @@ public class MessageHandler
     {
         try
         {
-            var config = await _apiService.GetActivityConfigByUserAsync(userId);
+            var user = await _apiService.GetUserByTelegramIdAsync(userId);
+            if (user == null)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Користувача не знайдено");
+                return;
+            }
+
+            var config = await _apiService.GetActivityConfigByUserAsync(user.Id);
             if (config == null)
             {
                 await _botClient.SendTextMessageAsync(chatId, "❌ Конфігурацію не знайдено");
@@ -3078,7 +3091,14 @@ public class MessageHandler
     {
         try
         {
-            var config = await _apiService.GetActivityConfigByUserAsync(userId);
+            var user = await _apiService.GetUserByTelegramIdAsync(userId);
+            if (user == null)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Користувача не знайдено");
+                return;
+            }
+
+            var config = await _apiService.GetActivityConfigByUserAsync(user.Id);
             if (config == null)
             {
                 await _botClient.SendTextMessageAsync(chatId, "❌ Конфігурацію не знайдено");
