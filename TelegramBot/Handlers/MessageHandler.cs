@@ -1239,10 +1239,41 @@ public class MessageHandler
         }
         else if (data.StartsWith("edit_act_field_"))
         {
-            var parts = data.Split('_');
-            var id = long.Parse(parts[3]);
-            var field = parts[4];
-            await StartEditActivityConfigFieldAsync(chatId, id, field);
+            try
+            {
+                var parts = data.Split('_');
+                // Expected format: edit_act_field_{id}_{field}
+                // parts[0] = "edit"
+                // parts[1] = "act"
+                // parts[2] = "field"
+                // parts[3] = {id}
+                // parts[4] = {field}
+                if (parts.Length < 5)
+                {
+                    Console.WriteLine($"Error: Invalid callback data format: {data}");
+                    await _botClient.SendTextMessageAsync(
+                        chatId,
+                        "❌ Помилка: Невірний формат даних."
+                    );
+                    return;
+                }
+                if (long.TryParse(parts[3], out long id))
+                {
+                    var field = parts[4];
+                    await StartEditActivityConfigFieldAsync(chatId, id, field);
+                }
+                else
+                {
+                    Console.WriteLine(
+                        $"Error: Could not parse ID from '{parts[3]}' in data: {data}"
+                    );
+                    await _botClient.SendTextMessageAsync(chatId, "❌ Помилка: Невірний ID.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error handling edit_act_field: {ex.Message}");
+            }
         }
     }
 
