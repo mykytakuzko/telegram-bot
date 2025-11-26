@@ -996,6 +996,54 @@ public class MessageHandler
             var entityId = int.Parse(data.Split('_')[1]);
             await ShowUpdateMenuAsync(chatId, userId, entityId);
         }
+        else if (data.StartsWith("edit_act_field_"))
+        {
+            try
+            {
+                Console.WriteLine($"[DEBUG] Processing callback: {data}");
+                var parts = data.Split('_');
+
+                // Print all parts for debugging
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    Console.WriteLine($"[DEBUG] Part[{i}]: '{parts[i]}'");
+                }
+                // We expect: edit_act_field_{id}_{field}
+                // 0: edit
+                // 1: act
+                // 2: field
+                // 3: {id}
+                // 4: {field}
+                if (parts.Length < 5)
+                {
+                    Console.WriteLine($"[ERROR] Not enough parts! Length: {parts.Length}");
+                    await _botClient.SendTextMessageAsync(
+                        chatId,
+                        "❌ Помилка: Невірний формат даних."
+                    );
+                    return;
+                }
+                // USE INDEX 3 for ID
+                var idString = parts[3];
+                Console.WriteLine($"[DEBUG] Parsing ID from index 3: '{idString}'");
+                if (long.TryParse(idString, out long id))
+                {
+                    var field = parts[4];
+                    Console.WriteLine($"[DEBUG] Field is: '{field}'");
+                    await StartEditActivityConfigFieldAsync(chatId, id, field);
+                }
+                else
+                {
+                    Console.WriteLine($"[ERROR] Could not parse ID from '{idString}'");
+                    await _botClient.SendTextMessageAsync(chatId, "❌ Помилка: Невірний ID.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EXCEPTION] Error handling edit_act_field: {ex.Message}");
+                Console.WriteLine($"[EXCEPTION] StackTrace: {ex.StackTrace}");
+            }
+        }
         else if (data.StartsWith("edit_"))
         {
             var parts = data.Split('_');
@@ -1236,54 +1284,6 @@ public class MessageHandler
         {
             var id = long.Parse(data.Split('_').Last());
             await ShowEditActivityConfigMenuAsync(chatId, id);
-        }
-        else if (data.StartsWith("edit_act_field_"))
-        {
-            try
-            {
-                Console.WriteLine($"[DEBUG] Processing callback: {data}");
-                var parts = data.Split('_');
-
-                // Print all parts for debugging
-                for (int i = 0; i < parts.Length; i++)
-                {
-                    Console.WriteLine($"[DEBUG] Part[{i}]: '{parts[i]}'");
-                }
-                // We expect: edit_act_field_{id}_{field}
-                // 0: edit
-                // 1: act
-                // 2: field
-                // 3: {id}
-                // 4: {field}
-                if (parts.Length < 5)
-                {
-                    Console.WriteLine($"[ERROR] Not enough parts! Length: {parts.Length}");
-                    await _botClient.SendTextMessageAsync(
-                        chatId,
-                        "❌ Помилка: Невірний формат даних."
-                    );
-                    return;
-                }
-                // USE INDEX 3 for ID
-                var idString = parts[3];
-                Console.WriteLine($"[DEBUG] Parsing ID from index 3: '{idString}'");
-                if (long.TryParse(idString, out long id))
-                {
-                    var field = parts[4];
-                    Console.WriteLine($"[DEBUG] Field is: '{field}'");
-                    await StartEditActivityConfigFieldAsync(chatId, id, field);
-                }
-                else
-                {
-                    Console.WriteLine($"[ERROR] Could not parse ID from '{idString}'");
-                    await _botClient.SendTextMessageAsync(chatId, "❌ Помилка: Невірний ID.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[EXCEPTION] Error handling edit_act_field: {ex.Message}");
-                Console.WriteLine($"[EXCEPTION] StackTrace: {ex.StackTrace}");
-            }
         }
     }
 
