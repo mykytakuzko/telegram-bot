@@ -1241,38 +1241,48 @@ public class MessageHandler
         {
             try
             {
+                Console.WriteLine($"[DEBUG] Processing callback: {data}");
                 var parts = data.Split('_');
-                // Expected format: edit_act_field_{id}_{field}
-                // parts[0] = "edit"
-                // parts[1] = "act"
-                // parts[2] = "field"
-                // parts[3] = {id}
-                // parts[4] = {field}
+
+                // Print all parts for debugging
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    Console.WriteLine($"[DEBUG] Part[{i}]: '{parts[i]}'");
+                }
+                // We expect: edit_act_field_{id}_{field}
+                // 0: edit
+                // 1: act
+                // 2: field
+                // 3: {id}
+                // 4: {field}
                 if (parts.Length < 5)
                 {
-                    Console.WriteLine($"Error: Invalid callback data format: {data}");
+                    Console.WriteLine($"[ERROR] Not enough parts! Length: {parts.Length}");
                     await _botClient.SendTextMessageAsync(
                         chatId,
                         "❌ Помилка: Невірний формат даних."
                     );
                     return;
                 }
-                if (long.TryParse(parts[3], out long id))
+                // USE INDEX 3 for ID
+                var idString = parts[3];
+                Console.WriteLine($"[DEBUG] Parsing ID from index 3: '{idString}'");
+                if (long.TryParse(idString, out long id))
                 {
                     var field = parts[4];
+                    Console.WriteLine($"[DEBUG] Field is: '{field}'");
                     await StartEditActivityConfigFieldAsync(chatId, id, field);
                 }
                 else
                 {
-                    Console.WriteLine(
-                        $"Error: Could not parse ID from '{parts[3]}' in data: {data}"
-                    );
+                    Console.WriteLine($"[ERROR] Could not parse ID from '{idString}'");
                     await _botClient.SendTextMessageAsync(chatId, "❌ Помилка: Невірний ID.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error handling edit_act_field: {ex.Message}");
+                Console.WriteLine($"[EXCEPTION] Error handling edit_act_field: {ex.Message}");
+                Console.WriteLine($"[EXCEPTION] StackTrace: {ex.StackTrace}");
             }
         }
     }
