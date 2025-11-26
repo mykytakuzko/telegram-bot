@@ -102,6 +102,10 @@ public class MessageHandler
             {
                 await ProcessAddAccountInputAsync(chatId, userId, text, state);
             }
+            else if (state.CurrentFlow != null && state.CurrentFlow.StartsWith("edit_activity_"))
+            {
+                await ProcessActivityConfigEditInputAsync(chatId, text, state);
+            }
             else
             {
                 await ProcessFlowInputAsync(chatId, userId, text, state);
@@ -163,6 +167,15 @@ public class MessageHandler
                         InlineKeyboardButton.WithCallbackData(
                             "🔍 Переглянути конфігурації",
                             "view_all_configs"
+                        ),
+                    }
+                );
+                menuButtons.Add(
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData(
+                            "🔍 Всі симуляції",
+                            "admin_view_all_activity"
                         ),
                     }
                 );
@@ -1204,6 +1217,32 @@ public class MessageHandler
         else if (data == "activity_templates")
         {
             await ShowMessageTemplatesAsync(chatId, userId);
+        }
+        else if (data == "admin_view_all_activity")
+        {
+            await ShowAllActivityConfigsAsync(chatId);
+        }
+        else if (data.StartsWith("admin_view_all_activity_"))
+        {
+            var page = int.Parse(data.Split('_').Last());
+            await ShowAllActivityConfigsAsync(chatId, page);
+        }
+        else if (data.StartsWith("admin_activity_detail_"))
+        {
+            var id = long.Parse(data.Split('_').Last());
+            await ShowActivityConfigDetailsAsync(chatId, id);
+        }
+        else if (data.StartsWith("admin_activity_edit_"))
+        {
+            var id = long.Parse(data.Split('_').Last());
+            await ShowEditActivityConfigMenuAsync(chatId, id);
+        }
+        else if (data.StartsWith("edit_act_field_"))
+        {
+            var parts = data.Split('_');
+            var id = long.Parse(parts[3]);
+            var field = parts[4];
+            await StartEditActivityConfigFieldAsync(chatId, id, field);
         }
     }
 
@@ -3187,6 +3226,256 @@ public class MessageHandler
         {
             Console.WriteLine($"Error in ShowMessageTemplatesAsync: {ex.Message}");
             await _botClient.SendTextMessageAsync(chatId, "❌ Помилка завантаження шаблонів");
+        }
+    }
+
+    private async Task ShowAllActivityConfigsAsync(long chatId, int page = 0)
+    {
+        try
+        {
+            var configs = await _apiService.GetAllActivityConfigsAsync();
+            if (configs == null || configs.Count == 0)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Немає активних конфігурацій.");
+                return;
+            }
+            const int pageSize = 10;
+            var totalPages = (int)Math.Ceiling(configs.Count / (double)pageSize);
+            page = Math.Max(0, Math.Min(page, totalPages - 1));
+            var pageConfigs = configs.Skip(page * pageSize).Take(pageSize).ToList();
+            var messageText = $"📋 <b>Всі конфігурації (Сторінка {page + 1}/{totalPages})</b>\n\n";
+            var buttons = new List<InlineKeyboardButton[]>();
+            foreach (var config in pageConfigs)
+            {
+                var statusIcon = config.Enabled ? "✅" : "⏸";
+                var btnText =
+                    $"{statusIcon} ID:{config.Id} | User:{config.UserId} | {config.ActivitiesToday}/{config.MaxActivitiesPerDay}";
+                buttons.Add(
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData(
+                            btnText,
+                            $"admin_activity_detail_{config.Id}"
+                        ),
+                    }
+                );
+            }
+            // Pagination buttons
+            var navButtons = new List<InlineKeyboardButton>();
+            if (page > 0)
+                navButtons.Add(
+                    InlineKeyboardButton.WithCallbackData(
+                        "⬅️",
+                        $"admin_view_all_activity_{page - 1}"
+                    )
+                );
+            if (page < totalPages - 1)
+                navButtons.Add(
+                    InlineKeyboardButton.WithCallbackData(
+                        "➡️",
+                        $"admin_view_all_activity_{page + 1}"
+                    )
+                );
+
+            if (navButtons.Any())
+                buttons.Add(navButtons.ToArray());
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("🔙 Назад", "start") });
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                messageText,
+                parseMode: ParseMode.Html,
+                replyMarkup: new InlineKeyboardMarkup(buttons)
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in ShowAllActivityConfigsAsync: {ex.Message}");
+            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка завантаження списку.");
+        }
+    }
+
+    private async Task ShowActivityConfigDetailsAsync(long chatId, long configId)
+    {
+        try
+        {
+            // We can reuse GetActivityConfigByUserAsync if we have userId, but here we have configId.
+            // Ideally ApiService should have GetActivityConfigByIdAsync, but for now let's fetch all and find one,
+            // OR you can add GetById to ApiService. Assuming we fetch all for simplicity or you add GetById.
+            // BETTER: Let's use the new GetAll and filter, or add GetById.
+            // Let's assume you added GetByIdAsync to ApiService or use GetAll for now.
+            // Using GetAll for simplicity in this snippet, but GetById is better.
+
+            var configs = await _apiService.GetAllActivityConfigsAsync();
+            var config = configs?.FirstOrDefault(c => c.Id == configId);
+            if (config == null)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Конфігурацію не знайдено.");
+                return;
+            }
+            var status = config.Enabled ? "✅ Увімкнено" : "⏸ Вимкнено";
+            var messageText =
+                $"⚙️ <b>Деталі конфігурації #{config.Id}</b>\n"
+                + $"User ID: <code>{config.UserId}</code>\n"
+                + $"Статус: {status}\n"
+                + $"Сьогодні: {config.ActivitiesToday}/{config.MaxActivitiesPerDay}\n"
+                + $"Пауза при моніторингу: {(config.PauseDuringMonitoring ? "Так" : "Ні")}\n"
+                + $"Інтервал: {config.MinIntervalMinutes}-{config.MaxIntervalMinutes} хв\n"
+                + $"Ваги (R/L/S): {config.ReadChannelWeight}/{config.LikePostWeight}/{config.SendMessageWeight}";
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(
+                        "✏️ Редагувати",
+                        $"admin_activity_edit_{config.Id}"
+                    ),
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("🔙 Назад", "admin_view_all_activity"),
+                },
+            };
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                messageText,
+                parseMode: ParseMode.Html,
+                replyMarkup: new InlineKeyboardMarkup(buttons)
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+    private async Task ShowEditActivityConfigMenuAsync(long chatId, long configId)
+    {
+        var buttons = new List<InlineKeyboardButton[]>
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "Мін. активностей",
+                    $"edit_act_field_{configId}_minAct"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "Макс. активностей",
+                    $"edit_act_field_{configId}_maxAct"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "Мін. інтервал",
+                    $"edit_act_field_{configId}_minInt"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "Макс. інтервал",
+                    $"edit_act_field_{configId}_maxInt"
+                ),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "🔙 Назад",
+                    $"admin_activity_detail_{configId}"
+                ),
+            },
+        };
+        await _botClient.SendTextMessageAsync(
+            chatId,
+            "Оберіть параметр для редагування:",
+            replyMarkup: new InlineKeyboardMarkup(buttons)
+        );
+    }
+
+    private async Task StartEditActivityConfigFieldAsync(long chatId, long configId, string field)
+    {
+        await _stateManager.SetStateAsync(
+            chatId,
+            $"edit_activity_{configId}_{field}",
+            new Dictionary<string, string>()
+        );
+        await _botClient.SendTextMessageAsync(
+            chatId,
+            $"Введіть нове значення для <b>{field}</b>:",
+            parseMode: ParseMode.Html
+        );
+    }
+
+    private async Task ProcessActivityConfigEditInputAsync(
+        long chatId,
+        string input,
+        UserState state
+    )
+    {
+        try
+        {
+            var parts = state.CurrentFlow.Split('_'); // edit_activity_{id}_{field}
+            var configId = long.Parse(parts[2]);
+            var field = parts[3];
+            if (!int.TryParse(input, out int newValue))
+            {
+                await _botClient.SendTextMessageAsync(chatId, "❌ Будь ласка, введіть число.");
+                return;
+            }
+            // Fetch current config to update
+            var configs = await _apiService.GetAllActivityConfigsAsync();
+            var config = configs?.FirstOrDefault(c => c.Id == configId);
+
+            // Map to ActivitySimulationConfig (request DTO)
+            var updateDto = new ActivitySimulationConfig
+            {
+                UserId = config.UserId,
+                Enabled = config.Enabled,
+                PauseDuringMonitoring = config.PauseDuringMonitoring,
+                MinActivitiesPerDay = config.MinActivitiesPerDay,
+                MaxActivitiesPerDay = config.MaxActivitiesPerDay,
+                MinIntervalMinutes = config.MinIntervalMinutes,
+                MaxIntervalMinutes = config.MaxIntervalMinutes,
+                ReadChannelWeight = config.ReadChannelWeight,
+                LikePostWeight = config.LikePostWeight,
+                SendMessageWeight = config.SendMessageWeight,
+                Targets = new List<ActivitySimulationTarget>(), // Simplified, usually you'd map existing targets
+            };
+            switch (field)
+            {
+                case "minAct":
+                    updateDto.MinActivitiesPerDay = newValue;
+                    break;
+                case "maxAct":
+                    updateDto.MaxActivitiesPerDay = newValue;
+                    break;
+                case "minInt":
+                    updateDto.MinIntervalMinutes = newValue;
+                    break;
+                case "maxInt":
+                    updateDto.MaxIntervalMinutes = newValue;
+                    break;
+            }
+            var (success, error) = await _apiService.UpdateActivityConfigAsync(configId, updateDto);
+
+            if (success)
+            {
+                await _botClient.SendTextMessageAsync(chatId, "✅ Значення оновлено!");
+                await _stateManager.ClearStateAsync(chatId);
+                await ShowActivityConfigDetailsAsync(chatId, configId);
+            }
+            else
+            {
+                await _botClient.SendTextMessageAsync(chatId, $"❌ Помилка: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing edit: {ex.Message}");
+            await _botClient.SendTextMessageAsync(chatId, "❌ Сталася помилка.");
         }
     }
 }

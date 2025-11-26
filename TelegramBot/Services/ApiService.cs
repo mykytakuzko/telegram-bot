@@ -586,7 +586,9 @@ public class ApiService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{_baseUrl}/profile/telegram/{telegramUserId}");
+            var response = await _httpClient.GetAsync(
+                $"{_baseUrl}/profile/telegram/{telegramUserId}"
+            );
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Error getting user by Telegram ID: {response.StatusCode}");
@@ -600,6 +602,54 @@ public class ApiService
         {
             Console.WriteLine($"Error in GetUserByTelegramIdAsync: {ex.Message}");
             return null;
+        }
+    }
+
+    public async Task<List<ActivitySimulationResponse>?> GetAllActivityConfigsAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync(
+                $"{_baseUrl}/api/marketplace/activity-simulation/all"
+            );
+            if (!response.IsSuccessStatusCode)
+                return null;
+            var content = await response.Content.ReadAsStringAsync();
+            var apiResponse = JsonSerializer.Deserialize<
+                ApiResponse<List<ActivitySimulationResponse>>
+            >(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return apiResponse?.Data;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetAllActivityConfigsAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<(bool success, string? error)> UpdateActivityConfigAsync(
+        long configId,
+        ActivitySimulationConfig config
+    )
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(config);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PutAsync(
+                $"{_baseUrl}/api/marketplace/activity-simulation/{configId}",
+                content
+            );
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                return (false, errorContent);
+            }
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
         }
     }
 }
