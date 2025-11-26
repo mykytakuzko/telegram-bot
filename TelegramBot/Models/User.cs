@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TelegramBot.Models
+namespace TelegramBotApp.Models
 {
     public class User
     {

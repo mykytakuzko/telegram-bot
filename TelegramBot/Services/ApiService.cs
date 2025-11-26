@@ -4,7 +4,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using TelegramBotApp.Models;
-using TelegramBotApp.Models.User;
 
 namespace TelegramBotApp.Services;
 
