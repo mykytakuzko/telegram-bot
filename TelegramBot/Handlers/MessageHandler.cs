@@ -3397,11 +3397,15 @@ public class MessageHandler
 
     private async Task StartEditActivityConfigFieldAsync(long chatId, long configId, string field)
     {
-        await _stateManager.SetStateAsync(
-            chatId,
-            $"edit_activity_{configId}_{field}",
-            new Dictionary<string, string>()
-        );
+        var state = new UserState
+        {
+            TelegramUserId = chatId,
+            CurrentFlow = $"edit_activity_{configId}_{field}",
+            CollectedData = new Dictionary<string, string>(),
+            UpdatedAt = DateTime.UtcNow,
+        };
+        await _stateManager.SaveStateAsync(state);
+
         await _botClient.SendTextMessageAsync(
             chatId,
             $"Введіть нове значення для <b>{field}</b>:",
