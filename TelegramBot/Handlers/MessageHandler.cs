@@ -3128,19 +3128,9 @@ public class MessageHandler
     {
         try
         {
-            var user = await _apiService.GetUserByTelegramIdAsync(userId);
-            if (user == null)
-            {
-                await _botClient.SendTextMessageAsync(
-                    chatId,
-                    "❌ Користувача не знайдено в базі даних."
-                );
-                return;
-            }
-
             var request = new CreateActivitySimulationRequest
             {
-                UserId = user.Id,
+                UserId = 0, // Will be set by user input
             };
 
             var state = new UserState
@@ -3182,6 +3172,7 @@ public class MessageHandler
 
         var steps = new[]
         {
+            "userId",
             "enabled",
             "pauseDuringMonitoring",
             "minActivitiesPerDay",
@@ -3198,6 +3189,14 @@ public class MessageHandler
         // Process input based on field type
         switch (currentField)
         {
+            case "userId":
+                if (!long.TryParse(input, out long userIdValue))
+                {
+                    await _botClient.SendTextMessageAsync(chatId, "❌ Будь ласка, введіть валідний User ID (число).");
+                    return;
+                }
+                request.UserId = userIdValue;
+                break;
             case "enabled":
             case "pauseDuringMonitoring":
                 bool value = input.ToLower() == "yes" || input.ToLower() == "так";
@@ -3247,6 +3246,7 @@ public class MessageHandler
     {
         var steps = new[]
         {
+            "userId",
             "enabled",
             "pauseDuringMonitoring",
             "minActivitiesPerDay",
@@ -3271,6 +3271,9 @@ public class MessageHandler
 
         switch (currentField)
         {
+            case "userId":
+                prompt = "👤 Введіть User ID для конфігурації:";
+                break;
             case "enabled":
                 prompt = "✅ Увімкнути симуляцію активності?";
                 keyboard = CreateYesNoKeyboard();
