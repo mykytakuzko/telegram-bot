@@ -102,6 +102,10 @@ public class MessageHandler
             {
                 await ProcessAddAccountInputAsync(chatId, userId, text, state);
             }
+            else if (state.CurrentFlow == "create_activity")
+            {
+                await ProcessActivityConfigFlowInputAsync(chatId, userId, text, state);
+            }
             else if (state.CurrentFlow != null && state.CurrentFlow.StartsWith("edit_activity_"))
             {
                 await ProcessActivityConfigEditInputAsync(chatId, text, state);
@@ -139,6 +143,13 @@ public class MessageHandler
                     InlineKeyboardButton.WithCallbackData(
                         "⚙️ Налаштувати моніторинг",
                         "create_monitoring"
+                    ),
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(
+                        "📊 Симуляція активності",
+                        "activity_menu"
                     ),
                 },
             };
@@ -210,6 +221,15 @@ public class MessageHandler
                 InlineKeyboardButton.WithCallbackData(
                     "⚙️ Налаштувати моніторинг",
                     "create_monitoring"
+                ),
+            }
+        );
+        buttons.Add(
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    "📊 Симуляція активності",
+                    "activity_menu"
                 ),
             }
         );
@@ -1085,6 +1105,8 @@ public class MessageHandler
             var currentState = await _stateManager.GetStateAsync(userId);
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "yes", currentState);
+            else if (currentState?.CurrentFlow == "create_activity")
+                await ProcessActivityConfigFlowInputAsync(chatId, userId, "yes", currentState);
             else if (
                 currentState?.CurrentFlow != null
                 && currentState.CurrentFlow.StartsWith("edit_config_")
@@ -1103,6 +1125,8 @@ public class MessageHandler
             var currentState = await _stateManager.GetStateAsync(userId);
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "no", currentState);
+            else if (currentState?.CurrentFlow == "create_activity")
+                await ProcessActivityConfigFlowInputAsync(chatId, userId, "no", currentState);
             else if (
                 currentState?.CurrentFlow != null
                 && currentState.CurrentFlow.StartsWith("edit_config_")
@@ -1255,7 +1279,7 @@ public class MessageHandler
         }
         else if (data == "activity_create_config")
         {
-            await CreateActivityConfigAsync(chatId, userId);
+            await StartCreateActivityConfigFlowAsync(chatId, userId);
         }
         else if (data == "activity_toggle")
         {
@@ -1277,6 +1301,10 @@ public class MessageHandler
         {
             var page = int.Parse(data.Split('_').Last());
             await ShowAllActivityConfigsAsync(chatId, page);
+        }
+        else if (data == "admin_activity_create")
+        {
+            await StartCreateActivityConfigFlowAsync(chatId, userId);
         }
         else if (data.StartsWith("admin_activity_detail_"))
         {
@@ -3096,12 +3124,11 @@ public class MessageHandler
         }
     }
 
-    private async Task CreateActivityConfigAsync(long chatId, long telegramUserId)
+    private async Task StartCreateActivityConfigFlowAsync(long chatId, long userId)
     {
         try
         {
-            var user = await _apiService.GetUserByTelegramIdAsync(telegramUserId);
-
+            var user = await _apiService.GetUserByTelegramIdAsync(userId);
             if (user == null)
             {
                 await _botClient.SendTextMessageAsync(
@@ -3110,13 +3137,196 @@ public class MessageHandler
                 );
                 return;
             }
+
             var request = new CreateActivitySimulationRequest
             {
                 UserId = user.Id,
-                Enabled = false,
-                PauseDuringMonitoring = true,
             };
+
+            var state = new UserState
+            {
+                TelegramUserId = userId,
+                CurrentFlow = "create_activity",
+                CurrentStep = 0,
+                CollectedData = JsonSerializer.Serialize(request),
+            };
+            await _stateManager.SaveStateAsync(state);
+            await AskNextActivityConfigStepAsync(chatId, state, request);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in StartCreateActivityConfigFlowAsync: {ex.Message}");
+            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка запуску створення конфігурації");
+        }
+    }
+
+    private async Task ProcessActivityConfigFlowInputAsync(
+        long chatId,
+        long userId,
+        string input,
+        UserState state
+    )
+    {
+        if (state.LastBotMessageId.HasValue)
+        {
+            try
+            {
+                await _botClient.DeleteMessageAsync(chatId, state.LastBotMessageId.Value);
+            }
+            catch { }
+        }
+
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(state.CollectedData!);
+        if (request == null)
+            return;
+
+        var steps = new[]
+        {
+            "enabled",
+            "pauseDuringMonitoring",
+            "minActivitiesPerDay",
+            "maxActivitiesPerDay",
+            "minIntervalMinutes",
+            "maxIntervalMinutes",
+            "readChannelWeight",
+            "likePostWeight",
+            "sendMessageWeight",
+        };
+
+        var currentField = steps[state.CurrentStep];
+
+        // Process input based on field type
+        switch (currentField)
+        {
+            case "enabled":
+            case "pauseDuringMonitoring":
+                bool value = input.ToLower() == "yes" || input.ToLower() == "так";
+                if (currentField == "enabled")
+                    request.Enabled = value;
+                else
+                    request.PauseDuringMonitoring = value;
+                break;
+
+            case "minActivitiesPerDay":
+            case "maxActivitiesPerDay":
+            case "minIntervalMinutes":
+            case "maxIntervalMinutes":
+            case "readChannelWeight":
+            case "likePostWeight":
+            case "sendMessageWeight":
+                if (!int.TryParse(input, out int intValue))
+                {
+                    await _botClient.SendTextMessageAsync(chatId, "❌ Будь ласка, введіть число.");
+                    return;
+                }
+                switch (currentField)
+                {
+                    case "minActivitiesPerDay": request.MinActivitiesPerDay = intValue; break;
+                    case "maxActivitiesPerDay": request.MaxActivitiesPerDay = intValue; break;
+                    case "minIntervalMinutes": request.MinIntervalMinutes = intValue; break;
+                    case "maxIntervalMinutes": request.MaxIntervalMinutes = intValue; break;
+                    case "readChannelWeight": request.ReadChannelWeight = intValue; break;
+                    case "likePostWeight": request.LikePostWeight = intValue; break;
+                    case "sendMessageWeight": request.SendMessageWeight = intValue; break;
+                }
+                break;
+        }
+
+        state.CollectedData = JsonSerializer.Serialize(request);
+        state.CurrentStep++;
+        await _stateManager.SaveStateAsync(state);
+
+        await AskNextActivityConfigStepAsync(chatId, state, request);
+    }
+
+    private async Task AskNextActivityConfigStepAsync(
+        long chatId,
+        UserState state,
+        CreateActivitySimulationRequest request
+    )
+    {
+        var steps = new[]
+        {
+            "enabled",
+            "pauseDuringMonitoring",
+            "minActivitiesPerDay",
+            "maxActivitiesPerDay",
+            "minIntervalMinutes",
+            "maxIntervalMinutes",
+            "readChannelWeight",
+            "likePostWeight",
+            "sendMessageWeight",
+        };
+
+        if (state.CurrentStep >= steps.Length)
+        {
+            await FinalizeActivityConfigFlowAsync(chatId, state);
+            return;
+        }
+
+        var currentField = steps[state.CurrentStep];
+
+        string prompt;
+        InlineKeyboardMarkup? keyboard = null;
+
+        switch (currentField)
+        {
+            case "enabled":
+                prompt = "✅ Увімкнути симуляцію активності?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "pauseDuringMonitoring":
+                prompt = "⏸ Ставити на паузу під час моніторингу?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "minActivitiesPerDay":
+                prompt = "📊 Введіть мінімальну кількість активностей на день:";
+                break;
+            case "maxActivitiesPerDay":
+                prompt = "📊 Введіть максимальну кількість активностей на день:";
+                break;
+            case "minIntervalMinutes":
+                prompt = "⏱ Введіть мінімальний інтервал (хвилини):";
+                break;
+            case "maxIntervalMinutes":
+                prompt = "⏱ Введіть максимальний інтервал (хвилини):";
+                break;
+            case "readChannelWeight":
+                prompt = "📖 Введіть вагу для читання каналів:";
+                break;
+            case "likePostWeight":
+                prompt = "❤️ Введіть вагу для лайків:";
+                break;
+            case "sendMessageWeight":
+                prompt = "💬 Введіть вагу для відправки повідомлень:";
+                break;
+            default:
+                prompt = $"Введіть значення для {currentField}:";
+                break;
+        }
+
+        var msg = await _botClient.SendTextMessageAsync(
+            chatId,
+            prompt,
+            parseMode: ParseMode.Html,
+            replyMarkup: keyboard ?? CreateCancelKeyboard()
+        );
+        state.LastBotMessageId = msg.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task FinalizeActivityConfigFlowAsync(long chatId, UserState state)
+    {
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(state.CollectedData!);
+        if (request == null)
+            return;
+
+        // Initialize targets as empty list if not set
+        request.Targets ??= new List<ActivitySimulationTarget>();
+
             var (success, error) = await _apiService.CreateActivityConfigAsync(request);
+        await _stateManager.ClearStateAsync(state.TelegramUserId);
+
             if (success)
             {
                 await _botClient.SendTextMessageAsync(
@@ -3125,17 +3335,11 @@ public class MessageHandler
                     parseMode: ParseMode.Html
                 );
                 await Task.Delay(2000);
-                await ShowActivityMenuAsync(chatId, telegramUserId);
+            await ShowActivityMenuAsync(chatId, state.TelegramUserId);
             }
             else
             {
                 await _botClient.SendTextMessageAsync(chatId, $"❌ Помилка: {error}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error in CreateActivityConfigAsync: {ex.Message}");
-            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка створення конфігурації");
         }
     }
 
@@ -3333,6 +3537,15 @@ public class MessageHandler
 
             if (navButtons.Any())
                 buttons.Add(navButtons.ToArray());
+            buttons.Add(
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(
+                        "➕ Створити конфігурацію",
+                        "admin_activity_create"
+                    ),
+                }
+            );
             buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("🔙 Назад", "start") });
             await _botClient.SendTextMessageAsync(
                 chatId,
