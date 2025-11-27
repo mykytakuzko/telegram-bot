@@ -1023,7 +1023,7 @@ public class MessageHandler
                 {
                     var field = parts[4];
                     Console.WriteLine($"[DEBUG] Field is: '{field}'");
-                    await StartEditActivityConfigFieldAsync(chatId, id, field);
+                    await StartEditActivityConfigFieldAsync(chatId, userId, id, field);
                 }
                 else
                 {
@@ -1090,6 +1090,11 @@ public class MessageHandler
                 && currentState.CurrentFlow.StartsWith("edit_config_")
             )
                 await ProcessMonitoringConfigEditInputAsync(chatId, userId, "yes", currentState);
+            else if (
+                currentState?.CurrentFlow != null
+                && currentState.CurrentFlow.StartsWith("edit_activity_")
+            )
+                await ProcessActivityConfigEditInputAsync(chatId, "yes", currentState);
             else
                 await ProcessFlowInputAsync(chatId, userId, "yes", currentState);
         }
@@ -1103,6 +1108,11 @@ public class MessageHandler
                 && currentState.CurrentFlow.StartsWith("edit_config_")
             )
                 await ProcessMonitoringConfigEditInputAsync(chatId, userId, "no", currentState);
+            else if (
+                currentState?.CurrentFlow != null
+                && currentState.CurrentFlow.StartsWith("edit_activity_")
+            )
+                await ProcessActivityConfigEditInputAsync(chatId, "no", currentState);
             else
                 await ProcessFlowInputAsync(chatId, userId, "no", currentState);
         }
@@ -1282,6 +1292,11 @@ public class MessageHandler
         {
             var id = long.Parse(data.Split('_').Last());
             await DeleteActivityConfigAsync(chatId, id);
+        }
+        else if (data == "start")
+        {
+            await _stateManager.ClearStateAsync(userId);
+            await ShowMainMenuAsync(chatId, userId);
         }
     }
 
@@ -3476,11 +3491,11 @@ public class MessageHandler
         );
     }
 
-    private async Task StartEditActivityConfigFieldAsync(long chatId, long configId, string field)
+    private async Task StartEditActivityConfigFieldAsync(long chatId, long userId, long configId, string field)
     {
         var state = new UserState
         {
-            TelegramUserId = chatId,
+            TelegramUserId = userId,
             CurrentFlow = $"edit_activity_{configId}_{field}",
             CollectedData = JsonSerializer.Serialize(new Dictionary<string, string>()), // Serialize to string
             UpdatedAt = DateTime.UtcNow,
@@ -3700,7 +3715,7 @@ public class MessageHandler
             if (success)
             {
                 await _botClient.SendTextMessageAsync(chatId, "✅ Значення оновлено!");
-                await _stateManager.ClearStateAsync(chatId);
+                await _stateManager.ClearStateAsync(state.TelegramUserId);
                 await ShowActivityConfigDetailsAsync(chatId, configId);
             }
             else
