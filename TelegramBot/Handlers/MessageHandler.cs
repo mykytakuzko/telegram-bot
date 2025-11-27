@@ -1,5 +1,5 @@
-using System.Text.Json;
 using System.Linq;
+using System.Text.Json;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -228,10 +228,7 @@ public class MessageHandler
         buttons.Add(
             new[]
             {
-                InlineKeyboardButton.WithCallbackData(
-                    "📊 Симуляція активності",
-                    "activity_menu"
-                ),
+                InlineKeyboardButton.WithCallbackData("📊 Симуляція активності", "activity_menu"),
             }
         );
 
@@ -1175,6 +1172,34 @@ public class MessageHandler
             if (state != null)
             {
                 await SubmitMonitoringConfigAsync(chatId, state);
+            }
+        }
+        else if (data == "add_target_yes")
+        {
+            // Reset step to collect another target
+            if (state != null)
+            {
+                state.CurrentStep = 10; // Back to target_chatUsername step (after sendMessageWeight)
+                await _stateManager.SaveStateAsync(state);
+                var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(
+                    state.CollectedData!
+                );
+                await AskNextActivityConfigStepAsync(chatId, state, request!);
+            }
+        }
+        else if (data == "add_target_no")
+        {
+            // Proceed to show summary
+            if (state != null)
+            {
+                await ShowActivityConfigSummaryAsync(chatId, state);
+            }
+        }
+        else if (data == "confirm_activity_config")
+        {
+            if (state != null)
+            {
+                await SubmitActivityConfigAsync(chatId, state);
             }
         }
         else if (data == "modeltype_exact")
@@ -3147,7 +3172,10 @@ public class MessageHandler
         catch (Exception ex)
         {
             Console.WriteLine($"Error in StartCreateActivityConfigFlowAsync: {ex.Message}");
-            await _botClient.SendTextMessageAsync(chatId, "❌ Помилка запуску створення конфігурації");
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                "❌ Помилка запуску створення конфігурації"
+            );
         }
     }
 
@@ -3167,7 +3195,9 @@ public class MessageHandler
             catch { }
         }
 
-        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(state.CollectedData!);
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(
+            state.CollectedData!
+        );
         if (request == null)
             return;
 
@@ -3183,6 +3213,11 @@ public class MessageHandler
             "readChannelWeight",
             "likePostWeight",
             "sendMessageWeight",
+            "target_targetType",
+            "target_chatUsername",
+            "target_canRead",
+            "target_canLike",
+            "target_canSend",
         };
 
         var currentField = steps[state.CurrentStep];
@@ -3193,7 +3228,10 @@ public class MessageHandler
             case "userId":
                 if (!long.TryParse(input, out long userIdValue))
                 {
-                    await _botClient.SendTextMessageAsync(chatId, "❌ Будь ласка, введіть валідний User ID (число).");
+                    await _botClient.SendTextMessageAsync(
+                        chatId,
+                        "❌ Будь ласка, введіть валідний User ID (число)."
+                    );
                     return;
                 }
                 request.UserId = userIdValue;
@@ -3221,14 +3259,93 @@ public class MessageHandler
                 }
                 switch (currentField)
                 {
-                    case "minActivitiesPerDay": request.MinActivitiesPerDay = intValue; break;
-                    case "maxActivitiesPerDay": request.MaxActivitiesPerDay = intValue; break;
-                    case "minIntervalMinutes": request.MinIntervalMinutes = intValue; break;
-                    case "maxIntervalMinutes": request.MaxIntervalMinutes = intValue; break;
-                    case "readChannelWeight": request.ReadChannelWeight = intValue; break;
-                    case "likePostWeight": request.LikePostWeight = intValue; break;
-                    case "sendMessageWeight": request.SendMessageWeight = intValue; break;
+                    case "minActivitiesPerDay":
+                        request.MinActivitiesPerDay = intValue;
+                        break;
+                    case "maxActivitiesPerDay":
+                        request.MaxActivitiesPerDay = intValue;
+                        break;
+                    case "minIntervalMinutes":
+                        request.MinIntervalMinutes = intValue;
+                        break;
+                    case "maxIntervalMinutes":
+                        request.MaxIntervalMinutes = intValue;
+                        break;
+                    case "readChannelWeight":
+                        request.ReadChannelWeight = intValue;
+                        break;
+                    case "likePostWeight":
+                        request.LikePostWeight = intValue;
+                        break;
+                    case "sendMessageWeight":
+                        request.SendMessageWeight = intValue;
+                        break;
                 }
+                break;
+
+            case "target_targetType":
+                // Store target type in a temp location - we'll use part of CurrentFlow for this
+                // Store as "create_activity_type_CHANNEL" or "create_activity_type_GROUP"
+                string typeValue = input.ToUpper();
+                if (typeValue != "CHANNEL" && typeValue != "GROUP")
+                    typeValue = "CHANNEL"; // Default to CHANNEL
+                state.CurrentFlow = $"create_activity_type_{typeValue}";
+                break;
+
+            case "target_chatUsername":
+                // Store temporarily in EntityId
+                state.EntityId = input.Replace("@", "").Trim();
+                break;
+
+            case "target_canRead":
+                // Store temporarily as flag in SelectedGiftId (0 or 1)
+                bool canReadValue = input.ToLower() == "yes" || input.ToLower() == "так";
+                state.SelectedGiftId = canReadValue ? 1 : 0;
+                break;
+
+            case "target_canLike":
+                // Store temporarily in CurrentFlow field with special prefix
+                // But preserve the targetType if it exists
+                bool canLikeValue = input.ToLower() == "yes" || input.ToLower() == "так";
+                string existingType = state.CurrentFlow?.StartsWith("create_activity_type_") == true
+                    ? state.CurrentFlow
+                    : "create_activity_type_CHANNEL";
+                state.CurrentFlow = canLikeValue
+                    ? existingType.Replace("_type_", "_like1_type_")
+                    : existingType.Replace("_type_", "_like0_type_");
+                break;
+
+            case "target_canSend":
+                // Create target with all collected data
+                request.Targets ??= new List<ActivitySimulationTarget>();
+
+                bool canSend = input.ToLower() == "yes" || input.ToLower() == "так";
+                bool canRead = state.SelectedGiftId == 1;
+                bool canLike = state.CurrentFlow?.Contains("like1") ?? false;
+                
+                // Extract targetType from CurrentFlow
+                string targetType = "CHANNEL"; // default
+                if (state.CurrentFlow?.Contains("_type_") == true)
+                {
+                    var parts = state.CurrentFlow.Split("_type_");
+                    if (parts.Length > 1)
+                        targetType = parts[1];
+                }
+
+                var target = new ActivitySimulationTarget
+                {
+                    ChatUsername = state.EntityId ?? "",
+                    TargetType = targetType,
+                    CanRead = canRead,
+                    CanLike = canLike,
+                    CanSend = canSend,
+                };
+                request.Targets.Add(target);
+
+                // Clear temp storage
+                state.EntityId = null;
+                state.SelectedGiftId = null;
+                state.CurrentFlow = "create_activity"; // Reset flow name
                 break;
         }
 
@@ -3257,6 +3374,10 @@ public class MessageHandler
             "readChannelWeight",
             "likePostWeight",
             "sendMessageWeight",
+            "target_chatUsername",
+            "target_canRead",
+            "target_canLike",
+            "target_canSend",
         };
 
         if (state.CurrentStep >= steps.Length)
@@ -3304,6 +3425,22 @@ public class MessageHandler
             case "sendMessageWeight":
                 prompt = "💬 Введіть вагу для відправки повідомлень:";
                 break;
+            case "target_chatUsername":
+                prompt =
+                    $"📝 Введіть username каналу (без @) для цілі #{(request.Targets?.Count ?? 0) + 1}:";
+                break;
+            case "target_canRead":
+                prompt = "📖 Дозволити читання?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "target_canLike":
+                prompt = "❤️ Дозволити лайки?";
+                keyboard = CreateYesNoKeyboard();
+                break;
+            case "target_canSend":
+                prompt = "💬 Дозволити відправку повідомлень?";
+                keyboard = CreateYesNoKeyboard();
+                break;
             default:
                 prompt = $"Введіть значення для {currentField}:";
                 break;
@@ -3321,29 +3458,163 @@ public class MessageHandler
 
     private async Task FinalizeActivityConfigFlowAsync(long chatId, UserState state)
     {
-        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(state.CollectedData!);
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(
+            state.CollectedData!
+        );
         if (request == null)
             return;
 
         // Initialize targets as empty list if not set
         request.Targets ??= new List<ActivitySimulationTarget>();
 
-            var (success, error) = await _apiService.CreateActivityConfigAsync(request);
+        // Check if we just finished collecting target fields
+        // If so, ask if user wants to add another target
+        var steps = new[]
+        {
+            "userId",
+            "enabled",
+            "pauseDuringMonitoring",
+            "minActivitiesPerDay",
+            "maxActivitiesPerDay",
+            "minIntervalMinutes",
+            "maxIntervalMinutes",
+            "readChannelWeight",
+            "likePostWeight",
+            "sendMessageWeight",
+            "target_chatUsername",
+            "target_canRead",
+            "target_canLike",
+            "target_canSend",
+        };
+
+        if (state.CurrentStep >= steps.Length)
+        {
+            // Ask if user wants to add another target
+            var targetKeyboard = new InlineKeyboardMarkup(
+                new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData(
+                            "✅ Додати ще одну ціль",
+                            "add_target_yes"
+                        ),
+                    },
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData(
+                            "✔️ Завершити та створити",
+                            "add_target_no"
+                        ),
+                    },
+                }
+            );
+            var message = await _botClient.SendTextMessageAsync(
+                chatId,
+                $"📊 Зараз додано цілей: {request.Targets.Count}\nДодати ще одну?",
+                replyMarkup: targetKeyboard
+            );
+            state.LastBotMessageId = message.MessageId;
+            state.CollectedData = JsonSerializer.Serialize(request);
+            await _stateManager.SaveStateAsync(state);
+            return;
+        }
+    }
+
+    private async Task ShowActivityConfigSummaryAsync(long chatId, UserState state)
+    {
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(
+            state.CollectedData!
+        );
+        if (request == null)
+            return;
+
+        // Validation: at least one target required
+        if (request.Targets == null || request.Targets.Count == 0)
+        {
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                "❌ Помилка: потрібно додати хоча б одну ціль!"
+            );
+            await _stateManager.ClearStateAsync(state.TelegramUserId);
+            await ShowActivityMenuAsync(chatId, state.TelegramUserId);
+            return;
+        }
+
+        // Show summary confirmation
+        var targetsList = string.Join(
+            "\n",
+            request.Targets.Select(
+                (t, i) =>
+                {
+                    var permissions = new List<string>();
+                    if (t.CanRead)
+                        permissions.Add("📖 Читання");
+                    if (t.CanLike)
+                        permissions.Add("❤️ Лайки");
+                    if (t.CanSend)
+                        permissions.Add("💬 Повідомлення");
+                    return $"  {i + 1}. @{t.ChatUsername} ({string.Join(", ", permissions)})";
+                }
+            )
+        );
+
+        var summary =
+            $"📋 Підтвердження конфігурації симуляції активності:\n\n"
+            + $"👤 User ID: {request.UserId}\n"
+            + $"✅ Увімкнено: {(request.Enabled ? "Так" : "Ні")}\n"
+            + $"⏸ Пауза під час моніторингу: {(request.PauseDuringMonitoring ? "Так" : "Ні")}\n"
+            + $"📊 Активностей на день: {request.MinActivitiesPerDay}-{request.MaxActivitiesPerDay}\n"
+            + $"⏱ Інтервал (хв): {request.MinIntervalMinutes}-{request.MaxIntervalMinutes}\n"
+            + $"📖 Вага читання: {request.ReadChannelWeight}\n"
+            + $"❤️ Вага лайків: {request.LikePostWeight}\n"
+            + $"💬 Вага повідомлень: {request.SendMessageWeight}\n"
+            + $"🎯 Цілі ({request.Targets.Count}):\n{targetsList}\n\n"
+            + $"Створити цю конфігурацію?";
+
+        var keyboard = new InlineKeyboardMarkup(
+            new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(
+                        "✅ Підтвердити",
+                        "confirm_activity_config"
+                    ),
+                },
+                new[] { InlineKeyboardButton.WithCallbackData("❌ Скасувати", "cancel_flow") },
+            }
+        );
+
+        var message = await _botClient.SendTextMessageAsync(chatId, summary, replyMarkup: keyboard);
+        state.LastBotMessageId = message.MessageId;
+        await _stateManager.SaveStateAsync(state);
+    }
+
+    private async Task SubmitActivityConfigAsync(long chatId, UserState state)
+    {
+        var request = JsonSerializer.Deserialize<CreateActivitySimulationRequest>(
+            state.CollectedData!
+        );
+        if (request == null)
+            return;
+
+        var (success, error) = await _apiService.CreateActivityConfigAsync(request);
         await _stateManager.ClearStateAsync(state.TelegramUserId);
 
-            if (success)
-            {
-                await _botClient.SendTextMessageAsync(
-                    chatId,
-                    "✅ Конфігурацію створено!\n\nТепер додайте цілі для симуляції.",
-                    parseMode: ParseMode.Html
-                );
-                await Task.Delay(2000);
+        if (success)
+        {
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                "✅ Конфігурацію створено!",
+                parseMode: ParseMode.Html
+            );
+            await Task.Delay(2000);
             await ShowActivityMenuAsync(chatId, state.TelegramUserId);
-            }
-            else
-            {
-                await _botClient.SendTextMessageAsync(chatId, $"❌ Помилка: {error}");
+        }
+        else
+        {
+            await _botClient.SendTextMessageAsync(chatId, $"❌ {error}");
         }
     }
 
@@ -3708,7 +3979,12 @@ public class MessageHandler
         );
     }
 
-    private async Task StartEditActivityConfigFieldAsync(long chatId, long userId, long configId, string field)
+    private async Task StartEditActivityConfigFieldAsync(
+        long chatId,
+        long userId,
+        long configId,
+        string field
+    )
     {
         var state = new UserState
         {
@@ -3802,16 +4078,19 @@ public class MessageHandler
                 ReadChannelWeight = config.ReadChannelWeight,
                 LikePostWeight = config.LikePostWeight,
                 SendMessageWeight = config.SendMessageWeight,
-                Targets = config.Targets != null 
-                    ? config.Targets.Select(t => new ActivitySimulationTarget
-                    {
-                        ChatUsername = t.ChatUsername,
-                        TargetType = t.TargetType,
-                        CanRead = t.CanRead,
-                        CanSend = t.CanSend,
-                        CanLike = t.CanLike,
-                    }).ToList()
-                    : new List<ActivitySimulationTarget>()
+                Targets =
+                    config.Targets != null
+                        ? config
+                            .Targets.Select(t => new ActivitySimulationTarget
+                            {
+                                ChatUsername = t.ChatUsername,
+                                TargetType = t.TargetType,
+                                CanRead = t.CanRead,
+                                CanSend = t.CanSend,
+                                CanLike = t.CanLike,
+                            })
+                            .ToList()
+                        : new List<ActivitySimulationTarget>(),
             };
 
             // Process input based on field type
@@ -3832,12 +4111,10 @@ public class MessageHandler
                         );
                         return;
                     }
-                    
-                    var (toggleSuccess, toggleError) = await _apiService.ToggleActivitySimulationAsync(
-                        configId,
-                        shouldEnable
-                    );
-                    
+
+                    var (toggleSuccess, toggleError) =
+                        await _apiService.ToggleActivitySimulationAsync(configId, shouldEnable);
+
                     if (toggleSuccess)
                     {
                         await _botClient.SendTextMessageAsync(chatId, "✅ Значення оновлено!");
