@@ -3592,10 +3592,12 @@ public class MessageHandler
             switch (field)
             {
                 case "enabled":
+                    // Use enable/disable endpoints instead of updating the entire config
+                    bool shouldEnable;
                     if (input.ToLower() == "yes" || input.ToLower() == "так")
-                        updateDto.Enabled = true;
+                        shouldEnable = true;
                     else if (input.ToLower() == "no" || input.ToLower() == "ні")
-                        updateDto.Enabled = false;
+                        shouldEnable = false;
                     else
                     {
                         await _botClient.SendTextMessageAsync(
@@ -3604,7 +3606,23 @@ public class MessageHandler
                         );
                         return;
                     }
-                    break;
+                    
+                    var (toggleSuccess, toggleError) = await _apiService.ToggleActivitySimulationAsync(
+                        configId,
+                        shouldEnable
+                    );
+                    
+                    if (toggleSuccess)
+                    {
+                        await _botClient.SendTextMessageAsync(chatId, "✅ Значення оновлено!");
+                        await _stateManager.ClearStateAsync(state.TelegramUserId);
+                        await ShowActivityConfigDetailsAsync(chatId, configId);
+                    }
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(chatId, $"❌ Помилка: {toggleError}");
+                    }
+                    return; // Early return, don't continue to UpdateActivityConfigAsync
 
                 case "pauseDuringMonitoring":
                     if (input.ToLower() == "yes" || input.ToLower() == "так")
