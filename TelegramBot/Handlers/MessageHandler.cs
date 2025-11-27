@@ -1101,6 +1101,9 @@ public class MessageHandler
         else if (data == "answer_yes")
         {
             var currentState = await _stateManager.GetStateAsync(userId);
+
+            Console.WriteLine($"[DEBUG] answer_yes flow = {currentState?.CurrentFlow}, step = {currentState?.CurrentStep}");
+
             if (currentState?.CurrentFlow == "create_monitoring")
                 await ProcessMonitoringFlowInputAsync(chatId, userId, "yes", currentState);
             else if (currentState?.CurrentFlow == "create_activity")
