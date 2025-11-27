@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Linq;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -3801,7 +3802,16 @@ public class MessageHandler
                 ReadChannelWeight = config.ReadChannelWeight,
                 LikePostWeight = config.LikePostWeight,
                 SendMessageWeight = config.SendMessageWeight,
-                Targets = new List<ActivitySimulationTarget>(), // Simplified
+                Targets = config.Targets != null 
+                    ? config.Targets.Select(t => new ActivitySimulationTarget
+                    {
+                        ChatUsername = t.ChatUsername,
+                        TargetType = t.TargetType,
+                        CanRead = t.CanRead,
+                        CanSend = t.CanSend,
+                        CanLike = t.CanLike,
+                    }).ToList()
+                    : new List<ActivitySimulationTarget>()
             };
 
             // Process input based on field type
